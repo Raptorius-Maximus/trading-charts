@@ -1,0 +1,72 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, viewport-fit=cover">
+<title>Charts</title>
+<link rel="stylesheet" href="/static/css/style.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Charts</div>
+  <div class="controls">
+    <label class="count-label" for="chart-count">Number of charts</label>
+    <select id="chart-count">
+      <option value="1">1</option>
+      <option value="2">2</option>
+      <option value="4">4</option>
+      <option value="6">6</option>
+      <option value="8">8</option>
+    </select>
+    <span id="save-indicator" class="save-indicator" aria-live="polite"></span>
+  </div>
+</header>
+
+<main id="charts-grid" class="charts-grid" data-count="4"></main>
+
+<template id="pane-template">
+  <section class="pane" data-pane-id="">
+    <div class="pane-header">
+      <select class="pane-source">
+        <option value="hyperliquid">Hyperliquid</option>
+        <option value="yfinance">Yahoo Finance</option>
+      </select>
+      <input class="pane-symbol" type="text" spellcheck="false" autocomplete="off" placeholder="Symbol (e.g. BTC)">
+      <select class="pane-interval">
+        <option value="1m">1m</option>
+        <option value="5m">5m</option>
+        <option value="15m">15m</option>
+        <option value="1h">1h</option>
+        <option value="4h">4h</option>
+        <option value="1D">1D</option>
+      </select>
+      <label class="ind-toggle"><input type="checkbox" class="pane-ema20"><span>EMA20</span></label>
+      <label class="ind-toggle"><input type="checkbox" class="pane-ema50"><span>EMA50</span></label>
+      <label class="ind-toggle"><input type="checkbox" class="pane-rsi"><span>RSI</span></label>
+      <select class="pane-draw-tool" title="Draw">
+        <option value="">Draw…</option>
+        <option value="trend_line">Trend line</option>
+        <option value="horizontal_line">Horizontal line</option>
+        <option value="fib_retracement">Fib retracement</option>
+      </select>
+      <button type="button" class="pane-draw-clear" title="Clear drawings">Clear</button>
+    </div>
+    <div class="pane-ticker">
+      <span class="ticker-symbol"></span>
+      <span class="ticker-price">--</span>
+      <span class="quality-badge"></span>
+      <span class="conn-badge"></span>
+    </div>
+    <div class="pane-body">
+      <div class="pane-chart"></div>
+      <div class="pane-rsi-chart hidden"></div>
+      <div class="pane-error hidden"></div>
+    </div>
+  </section>
+</template>
+
+<script src="/static/vendor/klinecharts.min.js"></script>
+<script src="/static/js/overlays.js"></script>
+<script src="/static/js/app.js"></script>
+</body>
+</html>

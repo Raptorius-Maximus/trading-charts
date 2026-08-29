@@ -1,0 +1,172 @@
+"""
+FastAPI backend for the self-hosted trading dashboard.
+
+One process serves:
+  - the static frontend (plain HTML/CSS/vanilla JS, Lightweight Charts
+    vendored locally -- no CDN calls from the browser)
+  - GET  /health              liveness + configured data sources
+  - GET  /api/candles         historical candle snapshot for any source
+  - GET  /api/layout          saved multi-chart layout
+  - PUT  /api/layout          save the layout (server-side, JSON file)
+  - WS   /ws/candles          live candle stream, proxied from Hyperliquid
+  - POST /debug/drop-stream   test-only hook used by tests/kill_ws_test.py
+                               to exercise the reconnect-with-backoff path
+                               on demand (see that file for why).
+
+Why FastAPI over Flask: the live crypto feed is a long-lived websocket
+proxy that has to run its own reconnect loop concurrently with serving
+HTTP requests. FastAPI/Starlette's native asyncio support means that
+proxy is just another coroutine sharing the event loop with the HTTP
+routes -- no extra thread/greenlet plumbing the way it would need under
+Flask's synchronous WSGI model. Flask would work for the HTTP+static
+half of this alone, but the websocket half is where async pays for
+itself.
+"""
+
+from __future__ import annotations
+
+import asyncio
+import logging
+from contextlib import asynccontextmanager
+from pathlib import Path
+
+from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnect
+from fastapi.responses import FileResponse, JSONResponse
+from fastapi.staticfiles import StaticFiles
+
+from . import layout_store
+from .data_sources import SOURCES, DataSourceError
+from .hyperliquid_stream import manager as hl_manager
+
+logging.basicConfig(
+    level=logging.INFO,
+    format="%(asctime)s %(levelname)s %(name)s: %(message)s",
+)
+logger = logging.getLogger("charts.main")
+
+ROOT = Path(__file__).resolve().parent.parent
+FRONTEND_DIR = ROOT / "frontend"
+
+
+@asynccontextmanager
+async def lifespan(app: FastAPI):
+    layout_store.ensure_default_on_disk()
+    logger.info("startup complete; sources=%s", list(SOURCES.keys()))
+    yield
+    logger.info("shutting down")
+
+
+app = FastAPI(title="Trading Dashboard", lifespan=lifespan)
+
+app.mount("/static", StaticFiles(directory=str(FRONTEND_DIR / "static")), name="static")
+
+
+@app.get("/")
+async def index() -> FileResponse:
+    return FileResponse(str(FRONTEND_DIR / "index.html"))
+
+
+@app.get("/health")
+async def health() -> JSONResponse:
+    sources = {
+        name: {"quality": src.quality, "label": src.quality_label, "streaming": src.supports_stream}
+        for name, src in SOURCES.items()
+    }
+    return JSONResponse({"ok": True, "sources": sources})
+
+
+@app.get("/api/candles")
+async def api_candles(
+    source: str = Query(...),
+    symbol: str = Query(...),
+    interval: str = Query(...),
+    limit: int = Query(300, ge=1, le=2000),
+) -> JSONResponse:
+    src = SOURCES.get(source)
+    if src is None:
+        raise HTTPException(status_code=400, detail=f"unknown source '{source}'. known: {list(SOURCES)}")
+    try:
+        candles = await asyncio.to_thread(src.get_candles, symbol, interval, limit)
+    except DataSourceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return JSONResponse({
+        "source": source,
+        "symbol": symbol.upper(),
+        "interval": interval,
+        "quality": src.quality,
+        "quality_label": src.quality_label,
+        "candles": candles,
+    })
+
+
+@app.get("/api/layout")
+async def get_layout() -> JSONResponse:
+    return JSONResponse(layout_store.load_layout())
+
+
+@app.put("/api/layout")
+async def put_layout(layout: dict) -> JSONResponse:
+    if "numCharts" not in layout or "panes" not in layout:
+        raise HTTPException(status_code=400, detail="layout must include numCharts and panes")
+    layout_store.save_layout(layout)
+    return JSONResponse({"ok": True})
+
+
+@app.websocket("/ws/candles")
+async def ws_candles(websocket: WebSocket) -> None:
+    await websocket.accept()
+    params = websocket.query_params
+    source = params.get("source", "hyperliquid")
+    symbol = params.get("symbol", "")
+    interval = params.get("interval", "1m")
+
+    if source != "hyperliquid":
+        await websocket.send_json({"type": "error", "message": f"streaming not supported for source '{source}'"})
+        await websocket.close()
+        return
+    if not symbol:
+        await websocket.send_json({"type": "error", "message": "symbol is required"})
+        await websocket.close()
+        return
+
+    queue: asyncio.Queue = asyncio.Queue(maxsize=100)
+    try:
+        coin, hl_interval = await hl_manager.subscribe(symbol, interval, queue)
+    except ValueError as exc:
+        await websocket.send_json({"type": "error", "message": str(exc)})
+        await websocket.close()
+        return
+
+    sender_task = asyncio.create_task(_pump_queue_to_ws(queue, websocket))
+    try:
+        while True:
+            # We don't expect client->server messages, but reading keeps
+            # the disconnect (client closed tab) detectable promptly.
+            await websocket.receive_text()
+    except WebSocketDisconnect:
+        pass
+    finally:
+        sender_task.cancel()
+        await hl_manager.unsubscribe(coin, hl_interval, queue)
+
+
+async def _pump_queue_to_ws(queue: "asyncio.Queue", websocket: WebSocket) -> None:
+    try:
+        while True:
+            message = await queue.get()
+            await websocket.send_json(message)
+    except asyncio.CancelledError:
+        pass
+    except Exception:
+        pass
+
+
+@app.post("/debug/drop-stream")
+async def debug_drop_stream(coin: str = Query(...), interval: str = Query("1m")) -> JSONResponse:
+    """Test-only: force the named upstream Hyperliquid stream to drop so the
+    reconnect-with-backoff path can be observed. See tests/kill_ws_test.py."""
+    from .data_sources import HYPERLIQUID_INTERVALS
+
+    hl_interval = HYPERLIQUID_INTERVALS.get(interval, interval)
+    dropped = await hl_manager.force_drop(coin, hl_interval)
+    return JSONResponse({"ok": True, "dropped": dropped})

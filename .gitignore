@@ -1,0 +1,9 @@
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+service.log
+data/layout.json
+.DS_Store
+run.pid
+uvicorn.pid

@@ -1,0 +1,9 @@
+{
+  "numCharts": 4,
+  "panes": [
+    {"symbol": "BTC", "source": "hyperliquid", "interval": "1m", "ema20": true, "ema50": false, "rsi": false, "drawings": []},
+    {"symbol": "ETH", "source": "hyperliquid", "interval": "5m", "ema20": true, "ema50": false, "rsi": false, "drawings": []},
+    {"symbol": "AAPL", "source": "yfinance", "interval": "1h", "ema20": false, "ema50": false, "rsi": false, "drawings": []},
+    {"symbol": "SPY", "source": "yfinance", "interval": "1D", "ema20": false, "ema50": false, "rsi": false, "drawings": []}
+  ]
+}

@@ -231,3 +231,19 @@ See the project's task log / PR description for the four captured
 verification runs (server up + `/health`, smoke test, reconnect test,
 layout-survives-restart test). All four were run against a live instance
 of this service, not asserted from reading the code.
+
+## Live browser check (tests/browser_check.py)
+
+Loads the real page in headless Chromium and fails if any pane is stuck on
+"connecting…", has no price, or throws a JS error. Added after the KLineChart
+v10 API mismatch (2026-08-29) left every pane blank while API tests passed.
+
+One-time setup (all under `~/projects/.cache`, survives rebuilds; no root):
+`./.venv/bin/pip install playwright`, then
+`PLAYWRIGHT_BROWSERS_PATH=~/projects/.cache/pw-browsers ./.venv/bin/python -m playwright install chromium`.
+The container lacks Chromium's system libs, so the needed `.deb`s
+(libnspr4, libnss3, libatk1.0-0t64, libatk-bridge2.0-0t64, libatspi2.0-0t64,
+libxcomposite1, libxdamage1, libxres1, fontconfig-config, fonts-dejavu-core)
+are downloaded from archive.ubuntu.com and unpacked with `dpkg-deb -x` into
+`~/projects/.cache/pw-libs`; `pw-libs/fonts.conf` points fontconfig at them.
+The test script sets the env vars itself.

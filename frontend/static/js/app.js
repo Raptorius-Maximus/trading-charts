@@ -108,6 +108,58 @@
     }));
   }
 
+  // KLineChart v10 has no applyNewData/updateData. Data goes in through a
+  // "data loader" the chart pulls from whenever its symbol or period changes
+  // (or on resetData()), and live bars are pushed through the callback the
+  // chart hands us in subscribeBar. These helpers hide that behind two
+  // calls: setChartData (full refresh) and pushLiveBar (one bar).
+  const PERIOD_BY_INTERVAL = {
+    "1m": { type: "minute", span: 1 }, "5m": { type: "minute", span: 5 },
+    "15m": { type: "minute", span: 15 }, "1h": { type: "hour", span: 1 },
+    "4h": { type: "hour", span: 4 }, "1D": { type: "day", span: 1 },
+  };
+  function pricePrecisionFor(candles) {
+    const last = candles[candles.length - 1];
+    const px = last ? last.close : 0;
+    if (px >= 100) return 2;
+    if (px >= 1) return 3;
+    return 5;
+  }
+  function installDataLoader(state) {
+    state.chart.setDataLoader({
+      getBars: ({ type, callback }) => {
+        // The chart asks for history when scrolling to the edge; we hold
+        // one fixed window from the backend, so only the initial load has data.
+        callback(type === "init" ? toKLineData(state.candles) : [], false);
+      },
+      subscribeBar: ({ callback }) => { state.liveCb = callback; },
+      unsubscribeBar: () => { state.liveCb = null; },
+    });
+  }
+  function setChartData(state, candles) {
+    state.candles = candles;
+    if (!state.chart) return;
+    const key = `${state.config.source}|${state.config.symbol}|${state.config.interval}`;
+    if (state.chartKey !== key) {
+      state.chartKey = key;
+      state.chart.setSymbol({
+        ticker: state.config.symbol,
+        pricePrecision: pricePrecisionFor(candles),
+        volumePrecision: 0,
+      });
+      state.chart.setPeriod(PERIOD_BY_INTERVAL[state.config.interval] || { type: "hour", span: 1 });
+      // setSymbol/setPeriod each trigger a load; resetData guarantees one
+      // final pass with the data we hold now.
+    }
+    state.chart.resetData();
+  }
+  function pushLiveBar(state, candle) {
+    if (!state.chart) return;
+    const bar = toKLineData([candle])[0];
+    if (state.liveCb) state.liveCb(bar);
+    else state.chart.resetData();
+  }
+
   // ---------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------
@@ -218,7 +270,7 @@
     if (state.config.ema20) periods.push(20);
     if (state.config.ema50) periods.push(50);
     if (periods.length) {
-      state.chart.createIndicator({ name: "EMA", calcParams: periods }, true, { id: "candle_pane" });
+      state.chart.createIndicator({ name: "EMA", calcParams: periods, paneId: "candle_pane" }, true);
     }
   }
 
@@ -333,10 +385,9 @@
     state.el.querySelector(".ticker-symbol").textContent = `${state.config.symbol} · ${state.config.interval}`;
     try {
       const body = await fetchCandles(state.config);
-      state.candles = body.candles || [];
       setQualityBadge(state, body.quality, body.quality_label);
+      setChartData(state, body.candles || []);
       if (state.chart) {
-        state.chart.applyNewData(toKLineData(state.candles));
         restoreDrawings(state);
         syncEMA(state);
         syncRSI(state);
@@ -351,8 +402,7 @@
         state.pollTimer = setInterval(() => pollOnce(state), YFINANCE_POLL_MS);
       }
     } catch (e) {
-      state.candles = [];
-      if (state.chart) state.chart.applyNewData([]);
+      try { setChartData(state, []); } catch (_) { state.candles = []; }
       setConnState(state, "error", e.message);
     }
   }
@@ -360,10 +410,9 @@
   async function pollOnce(state) {
     try {
       const body = await fetchCandles(state.config);
-      state.candles = body.candles || [];
       setQualityBadge(state, body.quality, body.quality_label);
       const prevLast = state.el.dataset.lastClose ? parseFloat(state.el.dataset.lastClose) : null;
-      if (state.chart) state.chart.applyNewData(toKLineData(state.candles));
+      setChartData(state, body.candles || []);
       const last = state.candles[state.candles.length - 1];
       if (last) {
         flashTicker(state, last.close, prevLast);
@@ -419,16 +468,7 @@
       state.candles.push(candle);
       if (state.candles.length > 500) state.candles.shift();
     }
-    if (state.chart) {
-      state.chart.updateData({
-        timestamp: candle.time * 1000,
-        open: candle.open,
-        high: candle.high,
-        low: candle.low,
-        close: candle.close,
-        volume: candle.volume,
-      });
-    }
+    pushLiveBar(state, candle);
     flashTicker(state, candle.close, prevClose);
   }
 
@@ -468,6 +508,7 @@
     const chartEl = el.querySelector(".pane-chart");
     const chart = window.klinecharts.init(chartEl, { styles: DARK_STYLES });
     state.chart = chart;
+    installDataLoader(state);
     chart.createIndicator("VOL", false);
 
     // --- wiring ---

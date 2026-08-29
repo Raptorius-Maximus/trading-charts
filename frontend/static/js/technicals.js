@@ -65,7 +65,8 @@
     const relevant = out.filter((l) => {
       const gap = Math.abs(l.at(n - 1) - price) / price;
       const movingAway = (kind === "res" && l.slope > 0 && gap > 0.08) || (kind === "sup" && l.slope < 0 && gap > 0.08);
-      return gap <= 0.2 && l.last >= n * 0.5 && !movingAway;
+      const longEnough = (l.last - l.from) >= n * 0.15; // a 3-touch line over a few weeks is noise
+      return gap <= 0.2 && l.last >= n * 0.5 && !movingAway && longEnough;
     });
     // dedupe: near-duplicate if both ends are within a few tolerances
     relevant.sort((x, y) => y.touches - x.touches || y.last - x.last);

@@ -659,6 +659,7 @@
       (from ? `${from.toISOString().slice(0, 10)} → today · ${bars} bars` : "");
     state.el.querySelectorAll(".pane-ranges button").forEach((b) => b.classList.toggle("active", b.dataset.range === key));
     if (state.config.autoTA) syncAutoTA(state);
+    if (state.config.volProfile) syncVolProfile(state);
   }
 
   function wireRanges(state) {
@@ -690,12 +691,33 @@
     if (!state.chart || !window.autoTA) return;
     if (!state.config.autoTA) { window.autoTA.clear(state.chart); el.classList.add("hidden"); btn.classList.remove("active"); return; }
     // Analyse the bars on screen (the chosen range), not the whole history.
-    let bars = state.candles;
-    if (state.rangeStart) bars = bars.filter((c) => c.time >= state.rangeStart);
-    if (!state.rangeStart || bars.length < 60) bars = state.candles.slice(-Math.max(bars.length, Math.min(300, state.candles.length)));
+    const bars = visibleBars(state);
     const r = window.autoTA.analyse(bars);
     if (r) window.autoTA.draw(state.chart, bars, r); else window.autoTA.clear(state.chart);
     el.innerHTML = window.autoTA.readout(r);
+    el.classList.remove("hidden"); btn.classList.add("active");
+  }
+
+  // ---------------------------------------------------------------------
+  // Volume profile (volprofile.js): toggle per pane, same window as Auto lines.
+  // ---------------------------------------------------------------------
+
+  function visibleBars(state) {
+    let bars = state.candles;
+    if (state.rangeStart) bars = bars.filter((c) => c.time >= state.rangeStart);
+    if (!state.rangeStart || bars.length < 60) bars = state.candles.slice(-Math.max(bars.length, Math.min(300, state.candles.length)));
+    return bars;
+  }
+
+  function syncVolProfile(state) {
+    const el = state.el.querySelector(".pane-vp-read");
+    const btn = state.el.querySelector(".pane-vp");
+    if (!state.chart || !window.volProfile) return;
+    if (!state.config.volProfile) { window.volProfile.clear(state.chart); el.classList.add("hidden"); btn.classList.remove("active"); return; }
+    const bars = visibleBars(state);
+    const r = window.volProfile.compute(bars);
+    if (r) window.volProfile.draw(state.chart, bars, r); else window.volProfile.clear(state.chart);
+    el.innerHTML = window.volProfile.readout(r);
     el.classList.remove("hidden"); btn.classList.add("active");
   }
 
@@ -705,7 +727,7 @@
 
   function resyncDrawings(state) {
     if (!state.chart) return;
-    const overlays = state.chart.getOverlays().filter((o) => o.groupId !== "auto-ta");
+    const overlays = state.chart.getOverlays().filter((o) => o.groupId !== "auto-ta" && o.groupId !== "auto-vp");
     state.config.drawings = overlays.map((o) => ({
       name: o.name,
       points: (o.points || []).map((p) => ({ timestamp: p.timestamp, value: p.value })),
@@ -741,6 +763,7 @@
     state.config.drawings = [];
     scheduleSave();
     syncAutoTA(state);
+    syncVolProfile(state);
   }
 
   // ---------------------------------------------------------------------
@@ -1037,6 +1060,7 @@
     wireReplay(state);
     wireRanges(state);
     el.querySelector(".pane-ta").addEventListener("click", () => { config.autoTA = !config.autoTA; scheduleSave(); syncAutoTA(state); });
+    el.querySelector(".pane-vp").addEventListener("click", () => { config.volProfile = !config.volProfile; scheduleSave(); syncVolProfile(state); });
     el.querySelector(".pane-analyse").addEventListener("click", () => window.stockAnalysis && window.stockAnalysis.open(config.symbol));
     if (config.compare) { const b = el.querySelector(".pane-cmp"); b.classList.add("active"); b.textContent = `vs ${config.compare}`; }
     el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));
@@ -1070,6 +1094,7 @@
 
   // Small public surface for the sidebar (watchlist click -> chart).
   window.chartsApp = {
+    getChart(index) { const st = paneStates[index || 0]; return st ? st.chart : null; },
     restyle() {
       Object.values(paneStates).forEach((st) => {
         if (!st.chart) return;

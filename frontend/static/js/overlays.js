@@ -101,3 +101,40 @@
     },
   });
 })(window);
+
+/* Rectangle and circle drawing tools. KLineChart's core build registers
+   neither (they live in its paid extension), so the Draw menu entries and
+   the volume profile need our own. Two-point tools; points may sit beyond
+   the last bar (dataIndex-based), which the profile relies on. */
+(function (global) {
+  const kline = global.klinecharts;
+  kline.registerOverlay({
+    name: "rect",
+    totalStep: 3,
+    needDefaultPointFigure: true,
+    needDefaultXAxisFigure: true,
+    needDefaultYAxisFigure: true,
+    createPointFigures: ({ coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const [a, b] = coordinates;
+      return [{
+        type: "polygon",
+        attrs: { coordinates: [a, { x: b.x, y: a.y }, b, { x: a.x, y: b.y }] },
+        styles: { style: "stroke_fill" },
+      }];
+    },
+  });
+  kline.registerOverlay({
+    name: "circle",
+    totalStep: 3,
+    needDefaultPointFigure: true,
+    needDefaultXAxisFigure: true,
+    needDefaultYAxisFigure: true,
+    createPointFigures: ({ coordinates }) => {
+      if (coordinates.length < 2) return [];
+      const [a, b] = coordinates;
+      const r = Math.sqrt((a.x - b.x) ** 2 + (a.y - b.y) ** 2);
+      return [{ type: "circle", attrs: { x: a.x, y: a.y, r }, styles: { style: "stroke_fill" } }];
+    },
+  });
+})(window);

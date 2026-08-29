@@ -384,3 +384,9 @@ table.wl td.rm:hover { color: var(--red); }
 .ta-score.smid { background: rgba(210,153,34,.18); color: var(--amber) !important; }
 .ta-score.slo { background: rgba(239,83,80,.14); color: var(--red) !important; }
 .ta-why { margin-top: 2px; }
+.pane-vp { background: var(--bg); color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 8px; font-size: 0.8rem; cursor: pointer; }
+.pane-vp:hover { color: var(--text); border-color: #ab66ff; }
+.pane-vp.active { color: #ab66ff; border-color: #ab66ff; }
+.pane-vp-read { padding: 5px 10px; border-bottom: 1px solid var(--panel-border); font-size: 0.8rem; color: var(--text-dim); line-height: 1.45; }
+.pane-vp-read b { color: var(--text); }
+.vp-tag { color: #ab66ff !important; }

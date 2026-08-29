@@ -62,7 +62,11 @@
     // relevance: the line must still be near the action today and have been
     // touched in the recent half of the window
     const price = c[n - 1].close;
-    const relevant = out.filter((l) => Math.abs(l.at(n - 1) - price) / price <= 0.25 && l.last >= n * 0.45);
+    const relevant = out.filter((l) => {
+      const gap = Math.abs(l.at(n - 1) - price) / price;
+      const movingAway = (kind === "res" && l.slope > 0 && gap > 0.08) || (kind === "sup" && l.slope < 0 && gap > 0.08);
+      return gap <= 0.2 && l.last >= n * 0.5 && !movingAway;
+    });
     // dedupe: near-duplicate if both ends are within a few tolerances
     relevant.sort((x, y) => y.touches - x.touches || y.last - x.last);
     const keep = [];
@@ -153,7 +157,7 @@
     // direction decides -- don't front-run it.
     let wedge = null;
     for (const r of res) for (const su of sup) {
-      if (r.slope < 0 && su.slope > 0 && (r.at(n - 1) - su.at(n - 1)) / price < 0.06) wedge = { top: r.at(n - 1), bot: su.at(n - 1) };
+      if (r.slope < 0 && su.slope > 0 && (r.at(n - 1) - su.at(n - 1)) / price < 0.08) wedge = { top: r.at(n - 1), bot: su.at(n - 1) };
     }
     if (wedge) {
       score = Math.min(score, 65);

@@ -220,7 +220,7 @@
       if (x.t1 != null) s += `Up to 1st resistance <b>${f(x.t1v)}</b>: <b class="up">+${pc(x.t1)}</b>`;
       if (x.t2 != null) s += ` · 2nd <b>${f(x.t2v)}</b>: <b class="up">+${pc(x.t2)}</b>`;
       if (x.riskPct != null) s += ` · Stop below support <b>${f(x.stop)}</b>: <b class="down">−${pc(x.riskPct)}</b>`;
-      if (x.rr1 != null) s += ` · Risk/reward <b>${x.rr1.toFixed(1)}:1</b>` + (x.rr2 != null ? ` (to 2nd: <b>${x.rr2.toFixed(1)}:1</b>)` : "") + (x.rr1 >= 3 || (x.rr2 != null && x.rr2 >= 3) ? ' <span class="up">✓ 3:1 or better</span>' : x.rr1 < 1.5 && (x.rr2 == null || x.rr2 < 3) ? ' <span class="down">poor — not worth the risk here</span>' : "");
+      if (x.rr1 != null) s += ` · Risk/reward <b>${x.rr1.toFixed(1)}:1</b>` + (x.rr2 != null ? ` (to 2nd: <b>${x.rr2.toFixed(1)}:1</b>)` : "") + (x.rr1 >= 3 ? ' <span class="up">✓ 3:1 or better</span>' : (x.rr2 != null && x.rr2 >= 2.5) ? ` <span class="k-warn">only pays if ${f(x.t1v)} breaks — that is the decision point</span>` : x.rr1 < 1.5 ? ' <span class="down">poor — not worth the risk here</span>' : "");
       parts.push(`<div class="ta-rr">${s}</div>`);
     }
     parts.push(`Lines: ${r.sup.length} support, ${r.res.length} resistance (3+ touches), ${r.below.length + r.above.length} levels, ${r.gaps.length} open gaps`);

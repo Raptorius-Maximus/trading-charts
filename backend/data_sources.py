@@ -94,6 +94,11 @@ class HyperliquidSource(DataSource):
             resp = httpx.post(HYPERLIQUID_INFO_URL, json=body, timeout=10)
         except httpx.HTTPError as exc:
             raise DataSourceError(f"hyperliquid unreachable: {exc}") from exc
+        if resp.status_code == 500:
+            # Hyperliquid answers 500 (not 404) for a coin it does not list.
+            raise DataSourceError(
+                f"'{coin}' is not a crypto coin on Hyperliquid — for a stock, switch the pane's source to Stocks"
+            )
         if resp.status_code != 200:
             raise DataSourceError(f"hyperliquid error {resp.status_code}: {resp.text[:200]}")
         try:
@@ -101,7 +106,9 @@ class HyperliquidSource(DataSource):
         except ValueError as exc:
             raise DataSourceError(f"hyperliquid returned invalid JSON: {exc}") from exc
         if not isinstance(raw, list) or len(raw) == 0:
-            raise DataSourceError(f"unknown or empty symbol '{coin}' on hyperliquid")
+            raise DataSourceError(
+                f"'{coin}' is not a crypto coin on Hyperliquid — for a stock, switch the pane's source to Stocks"
+            )
         candles = [
             {
                 "time": c["t"] // 1000,

@@ -289,9 +289,36 @@
     if (state.pollTimer) { clearInterval(state.pollTimer); state.pollTimer = null; }
   }
 
+  // A stock ticker (has an exchange suffix like .CO/.ST or a share-class
+  // dash like NOVO-B) can never be a Hyperliquid coin. If a pane ends up
+  // with that combination, quietly route it to the stock source instead of
+  // letting the crypto feed time out on it.
+  function looksLikeStock(symbol) {
+    return /[.\-]/.test(symbol || "");
+  }
+  function normalizeSource(state) {
+    if (state.config.source === "hyperliquid" && looksLikeStock(state.config.symbol)) {
+      state.config.source = "yfinance";
+      const sel = state.el.querySelector(".pane-source");
+      if (sel) sel.value = "yfinance";
+      scheduleSave();
+    }
+  }
+
+  const FETCH_TIMEOUT_MS = 15000;
+
   async function fetchCandles(config) {
     const url = `/api/candles?source=${encodeURIComponent(config.source)}&symbol=${encodeURIComponent(config.symbol)}&interval=${encodeURIComponent(config.interval)}&limit=300`;
-    const res = await fetch(url);
+    const ctrl = new AbortController();
+    const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
+    let res;
+    try {
+      res = await fetch(url, { signal: ctrl.signal });
+    } catch (e) {
+      throw new Error(e.name === "AbortError" ? "no answer from data source (timed out)" : e.message);
+    } finally {
+      clearTimeout(timer);
+    }
     const body = await res.json().catch(() => ({}));
     if (!res.ok) {
       throw new Error(body.detail || `HTTP ${res.status}`);
@@ -301,6 +328,7 @@
 
   async function loadAndSubscribe(state) {
     teardownFeed(state);
+    normalizeSource(state);
     setConnState(state, "connecting");
     state.el.querySelector(".ticker-symbol").textContent = `${state.config.symbol} · ${state.config.interval}`;
     try {

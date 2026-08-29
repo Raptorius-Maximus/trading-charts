@@ -141,6 +141,12 @@ class YFinanceSource(DataSource):
             df = df.resample(plan["resample"]).agg(
                 {"Open": "first", "High": "max", "Low": "min", "Close": "last", "Volume": "sum"}
             ).dropna(how="any")
+        # Yahoo occasionally returns rows with missing prices (holidays,
+        # half-days, a not-yet-closed bar). NaN is not valid JSON, so drop
+        # those rows rather than crash the whole response.
+        df = df.dropna(subset=["Open", "High", "Low", "Close"])
+        if df.empty:
+            raise DataSourceError(f"no usable candles for '{sym}' on yfinance")
         candles = [
             {
                 "time": int(pd.Timestamp(idx).timestamp()),

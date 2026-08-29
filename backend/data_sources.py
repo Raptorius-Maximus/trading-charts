@@ -34,6 +34,7 @@ YAHOO_SEARCH_URL = "https://query2.finance.yahoo.com/v1/finance/search"
 # source maps it to its own lowercase-day spelling internally.)
 HYPERLIQUID_INTERVALS = {
     "1m": "1m", "5m": "5m", "15m": "15m", "1h": "1h", "4h": "4h", "1D": "1d",
+    "1W": "1w", "1M": "1M",
 }
 
 # yfinance has no native 4h bucket, and its 1m/5m/15m history windows are
@@ -46,7 +47,11 @@ YFINANCE_PLAN = {
     "15m": {"interval": "15m", "period": "1mo"},
     "1h": {"interval": "60m", "period": "3mo"},
     "4h": {"interval": "60m", "period": "6mo", "resample": "4h"},
-    "1D": {"interval": "1d", "period": "2y"},
+    # Long timeframes pull the full listing history ("max") so the chart can
+    # be scrolled back to the IPO, not just two years.
+    "1D": {"interval": "1d", "period": "max"},
+    "1W": {"interval": "1wk", "period": "max"},
+    "1M": {"interval": "1mo", "period": "max"},
 }
 
 

@@ -1,0 +1,103 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Screener</title>
+<link rel="stylesheet" href="/static/css/style.css">
+<style>
+  .scr-wrap { padding: 12px 14px; }
+  .scr-tools { display: flex; flex-wrap: wrap; gap: 10px; align-items: center; margin-bottom: 10px; }
+  .scr-tools input[type=text], .scr-tools select {
+    background: var(--bg); color: var(--text); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 6px 8px; font-size: 13px;
+  }
+  .scr-tools button {
+    background: var(--panel); color: var(--text); border: 1px solid var(--panel-border);
+    border-radius: 6px; padding: 6px 10px; cursor: pointer; font-size: 13px;
+  }
+  .scr-tools button:hover { border-color: var(--accent); }
+  .scr-status { color: var(--text-dim); font-size: 12px; }
+  .scr-presets { display: flex; gap: 6px; flex-wrap: wrap; }
+  .scr-presets button.active { border-color: var(--accent); color: var(--accent); }
+  .scr-table-wrap { overflow-x: auto; border: 1px solid var(--panel-border); border-radius: 8px; background: var(--panel); }
+  table.scr { border-collapse: collapse; width: 100%; font-size: 12.5px; white-space: nowrap; }
+  table.scr th, table.scr td { padding: 6px 8px; border-bottom: 1px solid var(--panel-border); text-align: right; }
+  table.scr th { position: sticky; top: 0; background: var(--panel); cursor: pointer; user-select: none; color: var(--text-dim); font-weight: 600; }
+  table.scr th:hover { color: var(--text); }
+  table.scr th.sorted { color: var(--accent); }
+  table.scr td.l, table.scr th.l { text-align: left; }
+  table.scr tr:hover td { background: rgba(79,143,247,.06); }
+  table.scr a { color: var(--accent); text-decoration: none; font-weight: 600; }
+  .na { color: var(--text-dim); }
+  .good { color: var(--green); }
+  .bad { color: var(--red); }
+  .score { display: inline-block; min-width: 34px; text-align: center; border-radius: 10px; padding: 1px 6px; font-weight: 600; }
+  .score.s-hi { background: rgba(38,166,154,.18); color: var(--green); }
+  .score.s-mid { background: rgba(210,153,34,.18); color: var(--amber); }
+  .score.s-lo { background: rgba(239,83,80,.14); color: var(--red); }
+  .checks { font-family: ui-monospace, Menlo, Consolas, monospace; letter-spacing: 1px; }
+  .checks .p { color: var(--green); } .checks .f { color: var(--red); } .checks .n { color: var(--text-dim); }
+  details.help { margin: 10px 0 14px; color: var(--text-dim); font-size: 13px; max-width: 980px; }
+  details.help summary { cursor: pointer; color: var(--text); }
+  details.help table { border-collapse: collapse; margin-top: 8px; }
+  details.help td { padding: 3px 10px 3px 0; vertical-align: top; }
+  details.help td:first-child { color: var(--text); white-space: nowrap; }
+  .topbar a.nav { color: var(--text-dim); text-decoration: none; margin-left: 14px; font-size: 14px; }
+  .topbar a.nav:hover, .topbar a.nav.here { color: var(--text); }
+</style>
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">Charts <a class="nav" href="/">Charts</a><a class="nav here" href="/screener">Screener</a></div>
+  <div class="controls"><span id="status" class="scr-status">loading…</span></div>
+</header>
+
+<div class="scr-wrap">
+  <details class="help">
+    <summary>How to read this table (Graham · Buffett · Munger)</summary>
+    <p>Every row is one stock with the numbers the three of them actually looked at. Two scores summarise it:
+    <b>Graham /7</b> counts how many of Benjamin Graham's defensive-investor rules the stock passes (cheap and safe),
+    <b>Quality /7</b> counts Buffett/Munger-style rules (a great business: high returns, fat margins, little debt).
+    A pass is ✓, a fail ✗, and · means Yahoo has no number for it. Data is from Yahoo Finance, delayed, and refreshed once a day — use it to find candidates, then read the annual report.</p>
+    <table>
+      <tr><td>P/E</td><td>Price ÷ earnings per share. Graham wanted ≤ 15. Lower = you pay less per krone of profit.</td></tr>
+      <tr><td>P/B</td><td>Price ÷ book value per share. Graham wanted ≤ 1.5, or P/E × P/B ≤ 22.5.</td></tr>
+      <tr><td>Graham #</td><td>√(22.5 × EPS × book/share) — Graham's "fair price". <b>Margin</b> is how far the current price sits below it (positive = cheaper than fair).</td></tr>
+      <tr><td>Cur. ratio</td><td>Current assets ÷ current liabilities. ≥ 2 means it can pay its bills twice over.</td></tr>
+      <tr><td>D/E</td><td>Debt ÷ equity, in %. Buffett/Munger want little debt: ≤ 50%.</td></tr>
+      <tr><td>ROE / ROA</td><td>Return on equity / on assets. Buffett's favourite: ≥ 15% ROE year after year says the business earns a lot on the money in it.</td></tr>
+      <tr><td>Net / Gross margin</td><td>Profit per krone of sales. Gross ≥ 40% is Munger's moat signal (pricing power).</td></tr>
+      <tr><td>FCF yield</td><td>Free cash flow ÷ market cap — Buffett's "owner earnings" per krone you pay. ≥ 5% is attractive.</td></tr>
+      <tr><td>Div yield</td><td>Dividend per share ÷ price, in %.</td></tr>
+      <tr><td>EPS g / Rev g</td><td>Earnings / revenue growth vs last year (Yahoo only gives one year; Graham wanted ten).</td></tr>
+      <tr><td>EV/EBITDA</td><td>Enterprise value ÷ operating cash profit — a P/E that also counts debt. Lower is cheaper.</td></tr>
+    </table>
+  </details>
+
+  <div class="scr-tools">
+    <input type="text" id="q" placeholder="Search name, symbol, sector…" size="30">
+    <select id="market"><option value="">All markets</option></select>
+    <div class="scr-presets">
+      <button data-preset="all" class="active">All</button>
+      <button data-preset="graham" title="Graham score ≥ 5">Graham picks</button>
+      <button data-preset="quality" title="Quality score ≥ 5">Buffett/Munger picks</button>
+      <button data-preset="both" title="Graham ≥ 4 and Quality ≥ 4">Cheap &amp; great</button>
+      <button data-preset="under" title="Price below Graham number">Under Graham #</button>
+    </div>
+    <input type="text" id="add" placeholder="Add symbol (e.g. ROCK-B.CO)" size="22">
+    <button id="add-btn">Add</button>
+    <button id="refresh-btn" title="Re-fetch all numbers from Yahoo (takes a few minutes)">Refresh data</button>
+  </div>
+
+  <div class="scr-table-wrap">
+    <table class="scr" id="tbl">
+      <thead><tr id="head"></tr></thead>
+      <tbody id="body"></tbody>
+    </table>
+  </div>
+</div>
+
+<script src="/static/js/screener.js?v=1"></script>
+</body>
+</html>

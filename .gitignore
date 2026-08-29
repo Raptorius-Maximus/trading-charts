@@ -7,3 +7,5 @@ data/layout.json
 .DS_Store
 run.pid
 uvicorn.pid
+data/fundamentals.json
+data/fundamentals.tmp

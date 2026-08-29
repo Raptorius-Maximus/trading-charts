@@ -34,7 +34,7 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import layout_store
+from . import fundamentals, layout_store
 from .data_sources import SOURCES, DataSourceError
 from .hyperliquid_stream import manager as hl_manager
 
@@ -51,6 +51,7 @@ FRONTEND_DIR = ROOT / "frontend"
 @asynccontextmanager
 async def lifespan(app: FastAPI):
     layout_store.ensure_default_on_disk()
+    fundamentals.maybe_refresh_on_startup()
     logger.info("startup complete; sources=%s", list(SOURCES.keys()))
     yield
     logger.info("shutting down")
@@ -80,7 +81,7 @@ async def api_candles(
     source: str = Query(...),
     symbol: str = Query(...),
     interval: str = Query(...),
-    limit: int = Query(300, ge=1, le=2000),
+    limit: int = Query(300, ge=1, le=20000),
 ) -> JSONResponse:
     src = SOURCES.get(source)
     if src is None:
@@ -111,6 +112,32 @@ async def symbol_search(q: str = Query(..., min_length=1)) -> JSONResponse:
     except DataSourceError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from exc
     return JSONResponse({"query": q, "results": results})
+
+
+@app.get("/screener")
+async def screener_page() -> FileResponse:
+    return FileResponse(str(FRONTEND_DIR / "screener.html"))
+
+
+@app.get("/api/screener")
+async def api_screener() -> JSONResponse:
+    """All cached fundamentals rows + refresh status. The page does its own
+    sorting/filtering; ~600 rows is small."""
+    return JSONResponse({"status": fundamentals.status(), "rows": fundamentals.all_rows()})
+
+
+@app.post("/api/screener/refresh")
+async def api_screener_refresh() -> JSONResponse:
+    started = fundamentals.start_refresh()
+    return JSONResponse({"started": started, "status": fundamentals.status()})
+
+
+@app.post("/api/screener/add")
+async def api_screener_add(symbol: str = Query(..., min_length=1)) -> JSONResponse:
+    row = await asyncio.to_thread(fundamentals.add_symbol, symbol)
+    if not row.get("ok"):
+        raise HTTPException(status_code=502, detail=row.get("error") or f"no data for '{symbol}'")
+    return JSONResponse(row)
 
 
 @app.get("/api/layout")

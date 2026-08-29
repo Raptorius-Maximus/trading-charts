@@ -117,7 +117,13 @@
     "1m": { type: "minute", span: 1 }, "5m": { type: "minute", span: 5 },
     "15m": { type: "minute", span: 15 }, "1h": { type: "hour", span: 1 },
     "4h": { type: "hour", span: 4 }, "1D": { type: "day", span: 1 },
+    "1W": { type: "week", span: 1 }, "1M": { type: "month", span: 1 },
   };
+  // How many bars to ask for. Intraday stays a screenful; daily and up
+  // fetch the whole history so you can scroll back to the listing date.
+  function limitFor(interval) {
+    return (interval === "1D" || interval === "1W" || interval === "1M") ? 20000 : 300;
+  }
   function pricePrecisionFor(candles) {
     const last = candles[candles.length - 1];
     const px = last ? last.close : 0;
@@ -360,7 +366,7 @@
   const FETCH_TIMEOUT_MS = 15000;
 
   async function fetchCandles(config) {
-    const url = `/api/candles?source=${encodeURIComponent(config.source)}&symbol=${encodeURIComponent(config.symbol)}&interval=${encodeURIComponent(config.interval)}&limit=300`;
+    const url = `/api/candles?source=${encodeURIComponent(config.source)}&symbol=${encodeURIComponent(config.symbol)}&interval=${encodeURIComponent(config.interval)}&limit=${limitFor(config.interval)}`;
     const ctrl = new AbortController();
     const timer = setTimeout(() => ctrl.abort(), FETCH_TIMEOUT_MS);
     let res;
@@ -651,6 +657,12 @@
     }
     while (paneConfigs.length < MAX_PANES) {
       paneConfigs.push(defaultPaneConfig(paneConfigs.length));
+    }
+    // /?symbol=X (from the screener) puts X in the first chart.
+    const linked = new URLSearchParams(location.search).get("symbol");
+    if (linked) {
+      paneConfigs[0] = Object.assign({}, paneConfigs[0], { symbol: linked.toUpperCase(), source: "yfinance" });
+      history.replaceState(null, "", "/");
     }
     countSelect.value = String(numCharts);
     rebuildGrid();

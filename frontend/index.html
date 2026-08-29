@@ -8,7 +8,7 @@
 </head>
 <body>
 <header class="topbar">
-  <div class="brand">Charts</div>
+  <div class="brand">Charts <a class="nav" href="/screener" style="color:var(--text-dim);text-decoration:none;margin-left:14px;font-size:14px;font-weight:400">Screener</a></div>
   <div class="controls">
     <label class="count-label" for="chart-count">Number of charts</label>
     <select id="chart-count">
@@ -42,6 +42,8 @@
         <option value="1h">1h</option>
         <option value="4h">4h</option>
         <option value="1D">1D</option>
+        <option value="1W">1W</option>
+        <option value="1M">1M</option>
       </select>
       <label class="ind-toggle"><input type="checkbox" class="pane-ema20"><span>EMA20</span></label>
       <label class="ind-toggle"><input type="checkbox" class="pane-ema50"><span>EMA50</span></label>
@@ -70,6 +72,6 @@
 
 <script src="/static/vendor/klinecharts.min.js"></script>
 <script src="/static/js/overlays.js"></script>
-<script src="/static/js/app.js?v=10b"></script>
+<script src="/static/js/app.js?v=11"></script>
 </body>
 </html>

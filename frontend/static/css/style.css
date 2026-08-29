@@ -367,3 +367,8 @@ table.wl td.rm:hover { color: var(--red); }
 .pane-analyse:hover { color: var(--text); border-color: var(--accent); }
 .scr .an-btn { background: var(--bg); color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; cursor: pointer; }
 .scr .an-btn:hover { color: var(--text); border-color: var(--accent); }
+.an-ai { margin-top: 14px; padding-top: 12px; border-top: 1px solid var(--panel-border); }
+.an-ai-btn { background: var(--accent); color: #fff; border: none; border-radius: 6px; padding: 6px 12px; cursor: pointer; font-size: 0.82rem; margin-right: 10px; }
+.an-ai-btn:disabled { opacity: .45; cursor: default; }
+.an-ai-text { margin-top: 10px; }
+.an-ai-text p { margin: 6px 0; }

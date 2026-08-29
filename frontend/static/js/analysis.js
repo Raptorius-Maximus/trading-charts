@@ -47,9 +47,39 @@
       section("Warren Buffett — is it a wonderful business?", d.buffett) +
       section("Charlie Munger — invert, and would you hold it 20 years?", d.munger) +
       `<h4>The record (from Yahoo, fiscal years)</h4>` + histTable(f) +
-      `<div class="dim tiny">${esc(d.note)} Generated ${new Date(d.generated * 1000).toLocaleString()}.</div>`;
+      `<div class="dim tiny">${esc(d.note)} Generated ${new Date(d.generated * 1000).toLocaleString()}.</div>` +
+      `<div class="an-ai"><button type="button" class="an-ai-btn">AI second opinion</button><span class="dim tiny an-ai-note"></span><div class="an-ai-text"></div></div>`;
+    wireAI(o, f.symbol);
     o.querySelector(".an-refresh").onclick = () => open(f.symbol, true);
     o.classList.remove("hidden");
+  }
+  function mdToHtml(t) {
+    return t.split(/\n{2,}/).map((p) => {
+      p = p.trim(); if (!p) return "";
+      if (p.startsWith("## ")) return `<h4>${esc(p.slice(3))}</h4>`;
+      if (/^[-*] /m.test(p)) return "<ul>" + p.split(/\n/).map((l) => `<li>${esc(l.replace(/^[-*] /, ""))}</li>`).join("") + "</ul>";
+      return `<p>${esc(p).replace(/\*\*(.+?)\*\*/g, "<b>$1</b>").replace(/\n/g, "<br>")}</p>`;
+    }).join("");
+  }
+  async function wireAI(o, symbol) {
+    const btn = o.querySelector(".an-ai-btn"), note = o.querySelector(".an-ai-note"), out = o.querySelector(".an-ai-text");
+    let st = {};
+    try { st = await (await fetch("/api/ai-analysis/status")).json(); } catch (_) {}
+    if (!st.lan) { btn.disabled = true; note.textContent = "Only on the home wifi (not on the public link)."; return; }
+    if (!st.configured) { btn.disabled = true; note.textContent = "Not set up yet — no API key on the server."; return; }
+    note.textContent = "Written by Claude from the same numbers. A few cents per stock; cached for a day.";
+    const run = async (force) => {
+      btn.disabled = true; out.innerHTML = '<div class="dim">Thinking… usually 20–60 seconds.</div>';
+      try {
+        const r = await fetch(`/api/ai-analysis/${encodeURIComponent(symbol)}${force ? "?force=1" : ""}`, { method: "POST" });
+        const d = await r.json();
+        if (!r.ok) throw new Error(d.detail || `HTTP ${r.status}`);
+        out.innerHTML = mdToHtml(d.text) + `<div class="dim tiny">${esc(d.model)} · ${new Date(d.generated * 1000).toLocaleString()} · ~$${d.usage.approx_usd} · <a href="#" class="an-ai-redo">rewrite</a></div>`;
+        out.querySelector(".an-ai-redo").addEventListener("click", (e) => { e.preventDefault(); run(true); });
+      } catch (e) { out.innerHTML = `<div class="k-bad">${esc(e.message)}</div>`; }
+      btn.disabled = false;
+    };
+    btn.addEventListener("click", () => run(false));
   }
   async function open(symbol, force) {
     const o = ensure();

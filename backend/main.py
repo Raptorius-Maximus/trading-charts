@@ -34,7 +34,11 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import analysis, fundamentals, layout_store, quotes
+import ipaddress
+
+from fastapi import Request
+
+from . import ai_analysis, analysis, fundamentals, layout_store, quotes
 from .data_sources import SOURCES, DataSourceError
 from .hyperliquid_stream import manager as hl_manager
 
@@ -228,6 +232,42 @@ async def api_analysis(symbol: str, force: bool = Query(False)) -> JSONResponse:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
     except Exception as exc:  # yfinance grab-bag
         raise HTTPException(status_code=502, detail=f"analysis failed: {exc}"[:200]) from exc
+    return JSONResponse(d)
+
+
+def _is_lan(request: Request) -> bool:
+    """True only for a direct private-network client. Anything that came
+    through a reverse proxy carries X-Forwarded-* headers and is refused,
+    even if the proxy itself sits on the LAN."""
+    for h in ("x-forwarded-for", "x-forwarded-host", "x-forwarded-proto", "x-real-ip", "forwarded"):
+        if h in request.headers:
+            return False
+    host = request.client.host if request.client else ""
+    try:
+        return ipaddress.ip_address(host).is_private or host == "127.0.0.1"
+    except ValueError:
+        return False
+
+
+@app.get("/api/ai-analysis/status")
+async def api_ai_status(request: Request) -> JSONResponse:
+    return JSONResponse({"lan": _is_lan(request), "configured": ai_analysis.configured()})
+
+
+@app.post("/api/ai-analysis/{symbol}")
+async def api_ai_analysis(symbol: str, request: Request, force: bool = Query(False)) -> JSONResponse:
+    """AI second opinion. LAN only (two locks: the public proxy refuses POST,
+    and this handler refuses non-private or proxied clients)."""
+    if not _is_lan(request):
+        raise HTTPException(status_code=403, detail="AI analysis is only available on the home network")
+    if not ai_analysis.configured():
+        raise HTTPException(status_code=503, detail="AI analysis is not set up yet (no API key)")
+    try:
+        d = await asyncio.to_thread(ai_analysis.get, symbol, force)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:
+        raise HTTPException(status_code=502, detail=f"AI analysis failed: {exc}"[:300]) from exc
     return JSONResponse(d)
 
 

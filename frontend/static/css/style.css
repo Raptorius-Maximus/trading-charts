@@ -374,3 +374,13 @@ table.wl td.rm:hover { color: var(--red); }
 .an-ai-text p { margin: 6px 0; }
 .swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid; vertical-align: -2px; margin-right: 8px; }
 .menu-list input[type=color] { width: 40px; height: 24px; border: 1px solid var(--panel-border); background: var(--bg); border-radius: 4px; padding: 0; cursor: pointer; }
+.pane-ta { background: var(--bg); color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; }
+.pane-ta:hover { color: var(--text); border-color: var(--accent); }
+.pane-ta.active { color: var(--accent); border-color: var(--accent); }
+.pane-ta-read { padding: 5px 10px; border-bottom: 1px solid var(--panel-border); font-size: 0.74rem; color: var(--text-dim); line-height: 1.45; }
+.pane-ta-read b { color: var(--text); }
+.ta-score { padding: 1px 7px; border-radius: 10px; }
+.ta-score.shi { background: rgba(38,166,154,.18); color: var(--green) !important; }
+.ta-score.smid { background: rgba(210,153,34,.18); color: var(--amber) !important; }
+.ta-score.slo { background: rgba(239,83,80,.14); color: var(--red) !important; }
+.ta-why { margin-top: 2px; }

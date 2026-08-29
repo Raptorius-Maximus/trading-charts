@@ -634,6 +634,7 @@
   function fitRange(state, key) {
     const chart = state.chart; if (!chart || !state.candles.length) return;
     const start = rangeStartSec(key);
+    state.rangeStart = start;
     const firstIdx = state.candles.findIndex((c) => c.time >= start);
     const bars = firstIdx < 0 ? state.candles.length : state.candles.length - firstIdx;
     const size = chart.getSize("candle_pane", "main");
@@ -651,6 +652,7 @@
     info.textContent = (wanted && covered < wanted - 1 ? `Yahoo only has this stock since ${dataStart.getFullYear()} · ` : "") +
       (from ? `${from.toISOString().slice(0, 10)} → today · ${bars} bars` : "");
     state.el.querySelectorAll(".pane-ranges button").forEach((b) => b.classList.toggle("active", b.dataset.range === key));
+    if (state.config.autoTA) syncAutoTA(state);
   }
 
   function wireRanges(state) {
@@ -672,12 +674,32 @@
   }
 
   // ---------------------------------------------------------------------
+  // Auto technicals (technicals.js): toggle per pane, redrawn on every load.
+  // Not persisted as drawings -- they are recomputed from the data.
+  // ---------------------------------------------------------------------
+
+  function syncAutoTA(state) {
+    const el = state.el.querySelector(".pane-ta-read");
+    const btn = state.el.querySelector(".pane-ta");
+    if (!state.chart || !window.autoTA) return;
+    if (!state.config.autoTA) { window.autoTA.clear(state.chart); el.classList.add("hidden"); btn.classList.remove("active"); return; }
+    // Analyse the bars on screen (the chosen range), not the whole history.
+    let bars = state.candles;
+    if (state.rangeStart) bars = bars.filter((c) => c.time >= state.rangeStart);
+    if (!state.rangeStart || bars.length < 60) bars = state.candles.slice(-Math.max(bars.length, Math.min(300, state.candles.length)));
+    const r = window.autoTA.analyse(bars);
+    if (r) window.autoTA.draw(state.chart, bars, r); else window.autoTA.clear(state.chart);
+    el.innerHTML = window.autoTA.readout(r);
+    el.classList.remove("hidden"); btn.classList.add("active");
+  }
+
+  // ---------------------------------------------------------------------
   // Drawings (persisted per pane slot via chart.getOverlays/createOverlay)
   // ---------------------------------------------------------------------
 
   function resyncDrawings(state) {
     if (!state.chart) return;
-    const overlays = state.chart.getOverlays();
+    const overlays = state.chart.getOverlays().filter((o) => o.groupId !== "auto-ta");
     state.config.drawings = overlays.map((o) => ({
       name: o.name,
       points: (o.points || []).map((p) => ({ timestamp: p.timestamp, value: p.value })),
@@ -712,6 +734,7 @@
     state.chart.removeOverlay();
     state.config.drawings = [];
     scheduleSave();
+    syncAutoTA(state);
   }
 
   // ---------------------------------------------------------------------
@@ -768,6 +791,7 @@
   async function loadAndSubscribe(state) {
     teardownFeed(state);
     normalizeSource(state);
+    if (!state.pendingRange) state.rangeStart = null;
     setConnState(state, "connecting");
     state.el.querySelector(".ticker-symbol").textContent = `${state.config.symbol} · ${state.config.interval}`;
     state.el.dataset.symbol = state.config.symbol;
@@ -780,6 +804,7 @@
         restoreDrawings(state);
         syncIndicators(state);
         if (state.config.compare) setCompare(state, state.config.compare);
+        syncAutoTA(state);
         if (state.pendingRange) { const k = state.pendingRange; state.pendingRange = null; setTimeout(() => fitRange(state, k), 50); }
         else state.el.querySelectorAll(".pane-ranges button").forEach((b) => b.classList.remove("active"));
       }
@@ -1005,6 +1030,7 @@
     });
     wireReplay(state);
     wireRanges(state);
+    el.querySelector(".pane-ta").addEventListener("click", () => { config.autoTA = !config.autoTA; scheduleSave(); syncAutoTA(state); });
     el.querySelector(".pane-analyse").addEventListener("click", () => window.stockAnalysis && window.stockAnalysis.open(config.symbol));
     if (config.compare) { const b = el.querySelector(".pane-cmp"); b.classList.add("active"); b.textContent = `vs ${config.compare}`; }
     el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));

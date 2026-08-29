@@ -271,6 +271,11 @@ async def api_ai_analysis(symbol: str, request: Request, force: bool = Query(Fal
     return JSONResponse(d)
 
 
+@app.get("/pine/auto_lines.pine")
+async def pine_auto_lines() -> FileResponse:
+    return FileResponse(str(ROOT / "pine" / "auto_lines.pine"), media_type="text/plain")
+
+
 @app.get("/api/layout")
 async def get_layout() -> JSONResponse:
     return JSONResponse(layout_store.load_layout())

@@ -1,0 +1,207 @@
+// @version=6
+// Auto Lines — Verified-Investing-style structure, drawn automatically.
+// Swing pivots -> trendlines through the last pivots, horizontal
+// support/resistance where price turned 3+ times, unfilled gaps, trend
+// structure (higher highs/lows) and a setup score 0-100 with reasons.
+// Pattern detection on past prices — not a forecast.
+//
+// Install: TradingView -> Pine Editor -> paste -> Add to chart.
+indicator("Auto Lines (VI-style)", overlay = true, max_lines_count = 50, max_boxes_count = 20, max_labels_count = 10)
+
+// ---------- settings
+pivLen   = input.int(6,  "Pivot strength (bars each side)", minval = 2, maxval = 20)
+lookback = input.int(250, "Bars to analyse", minval = 60, maxval = 1000)
+tolAtr   = input.float(0.6, "Touch tolerance (x ATR)", minval = 0.1, step = 0.1)
+minTouch = input.int(3, "Min touches for a level", minval = 2)
+gapMinPct = input.float(0.4, "Min gap size %", minval = 0.1, step = 0.1)
+showLevels = input.bool(true, "Horizontal support/resistance")
+showTrend  = input.bool(true, "Trendlines")
+showGaps   = input.bool(true, "Unfilled gaps")
+showTable  = input.bool(true, "Setup read (table)")
+
+// ---------- pivots
+ph = ta.pivothigh(high, pivLen, pivLen)
+pl = ta.pivotlow(low, pivLen, pivLen)
+atr = ta.atr(14)
+tol = math.max(atr * tolAtr, close * 0.004)
+
+var float[] hiV = array.new_float()
+var int[]   hiI = array.new_int()
+var float[] loV = array.new_float()
+var int[]   loI = array.new_int()
+
+if not na(ph)
+    array.push(hiV, ph)
+    array.push(hiI, bar_index - pivLen)
+if not na(pl)
+    array.push(loV, pl)
+    array.push(loI, bar_index - pivLen)
+// forget pivots older than the window
+while array.size(hiI) > 0 and array.get(hiI, 0) < bar_index - lookback
+    array.shift(hiI)
+    array.shift(hiV)
+while array.size(loI) > 0 and array.get(loI, 0) < bar_index - lookback
+    array.shift(loI)
+    array.shift(loV)
+
+// ---------- drawings (rebuilt on the last bar only, so it stays cheap)
+var line[]  lines  = array.new_line()
+var box[]   boxes  = array.new_box()
+var label[] labels = array.new_label()
+
+clearAll() =>
+    for l in lines
+        line.delete(l)
+    array.clear(lines)
+    for b in boxes
+        box.delete(b)
+    array.clear(boxes)
+    for lb in labels
+        label.delete(lb)
+    array.clear(labels)
+
+// count how many pivots (highs+lows) sit within tol of a price
+touchesAt(float price) =>
+    int n = 0
+    for v in hiV
+        if math.abs(v - price) <= tol * 1.5
+            n += 1
+    for v in loV
+        if math.abs(v - price) <= tol * 1.5
+            n += 1
+    n
+
+// line through two pivots; count touches by other pivots of the same kind
+lineTouches(float[] vals, int[] idxs, int a, int b) =>
+    float slope = (array.get(vals, b) - array.get(vals, a)) / (array.get(idxs, b) - array.get(idxs, a))
+    int n = 0
+    for k = 0 to array.size(vals) - 1
+        float at = array.get(vals, a) + slope * (array.get(idxs, k) - array.get(idxs, a))
+        if math.abs(array.get(vals, k) - at) <= tol
+            n += 1
+    n
+
+string trend = "sideways"
+float nearSup = na, nearRes = na
+int   supT = 0, resT = 0
+int   score = 50
+string why = ""
+
+if barstate.islast
+    clearAll()
+    // --- trend structure from the last two pivots of each kind
+    if array.size(hiV) >= 2 and array.size(loV) >= 2
+        hh = array.get(hiV, array.size(hiV) - 1) > array.get(hiV, array.size(hiV) - 2)
+        hl = array.get(loV, array.size(loV) - 1) > array.get(loV, array.size(loV) - 2)
+        lh = array.get(hiV, array.size(hiV) - 1) < array.get(hiV, array.size(hiV) - 2)
+        ll = array.get(loV, array.size(loV) - 1) < array.get(loV, array.size(loV) - 2)
+        trend := hh and hl ? "up" : lh and ll ? "down" : "sideways"
+
+    // --- horizontal levels: pivots with >= minTouch neighbours; nearest 2 above / 2 below
+    if showLevels
+        float bestBelow1 = na, bestBelow2 = na, bestAbove1 = na, bestAbove2 = na
+        int tb1 = 0, tb2 = 0, ta1 = 0, ta2 = 0
+        allV = array.copy(hiV)
+        array.concat(allV, loV)
+        for v in allV
+            t = touchesAt(v)
+            if t >= minTouch
+                if v < close - tol
+                    if na(bestBelow1) or v > bestBelow1
+                        bestBelow2 := bestBelow1, tb2 := tb1
+                        bestBelow1 := v, tb1 := t
+                    else if (na(bestBelow2) or v > bestBelow2) and math.abs(v - bestBelow1) > tol * 3
+                        bestBelow2 := v, tb2 := t
+                else if v > close + tol
+                    if na(bestAbove1) or v < bestAbove1
+                        bestAbove2 := bestAbove1, ta2 := ta1
+                        bestAbove1 := v, ta1 := t
+                    else if (na(bestAbove2) or v < bestAbove2) and math.abs(v - bestAbove1) > tol * 3
+                        bestAbove2 := v, ta2 := t
+        for [lv, t] in array.from([bestBelow1, tb1], [bestBelow2, tb2], [bestAbove1, ta1], [bestAbove2, ta2])
+            if not na(lv)
+                array.push(lines, line.new(bar_index - lookback, lv, bar_index + 20, lv, color = color.new(color.orange, 20), style = line.style_dashed))
+                array.push(labels, label.new(bar_index + 20, lv, str.tostring(t) + "x", style = label.style_label_left, color = color.new(color.orange, 70), textcolor = color.white, size = size.small))
+        nearSup := bestBelow1, supT := tb1
+        nearRes := bestAbove1, resT := ta1
+
+    // --- trendlines: best pair of pivot highs (resistance) / lows (support) by touches, must be >= minTouch
+    if showTrend
+        // resistance
+        int bestA = -1, bestB = -1, bestN = 0
+        if array.size(hiV) >= 2
+            for a = 0 to array.size(hiV) - 2
+                for b = a + 1 to array.size(hiV) - 1
+                    n = lineTouches(hiV, hiI, a, b)
+                    if n >= minTouch and n >= bestN
+                        bestN := n, bestA := a, bestB := b
+        if bestA >= 0
+            x1 = array.get(hiI, bestA), y1 = array.get(hiV, bestA), x2 = array.get(hiI, bestB), y2 = array.get(hiV, bestB)
+            array.push(lines, line.new(x1, y1, x2, y2, extend = extend.right, color = color.new(color.red, 10), width = 2))
+            yNow = y1 + (y2 - y1) / (x2 - x1) * (bar_index - x1)
+            if yNow > close - tol and (na(nearRes) or yNow < nearRes)
+                nearRes := yNow, resT := bestN
+        // support
+        bestA := -1, bestB := -1, bestN := 0
+        if array.size(loV) >= 2
+            for a = 0 to array.size(loV) - 2
+                for b = a + 1 to array.size(loV) - 1
+                    n = lineTouches(loV, loI, a, b)
+                    if n >= minTouch and n >= bestN
+                        bestN := n, bestA := a, bestB := b
+        if bestA >= 0
+            x1 = array.get(loI, bestA), y1 = array.get(loV, bestA), x2 = array.get(loI, bestB), y2 = array.get(loV, bestB)
+            array.push(lines, line.new(x1, y1, x2, y2, extend = extend.right, color = color.new(color.teal, 10), width = 2))
+            yNow = y1 + (y2 - y1) / (x2 - x1) * (bar_index - x1)
+            if yNow < close + tol and (na(nearSup) or yNow > nearSup)
+                nearSup := yNow, supT := bestN
+
+    // --- unfilled gaps in the window
+    if showGaps
+        int drawn = 0
+        for i = 1 to math.min(lookback, bar_index) - 1
+            if drawn >= 4
+                break
+            gapUp = low[i] > high[i + 1]
+            gapDn = high[i] < low[i + 1]
+            if gapUp or gapDn
+                top = gapUp ? low[i] : low[i + 1]
+                bot = gapUp ? high[i + 1] : high[i]
+                if (top - bot) / bot * 100 >= gapMinPct
+                    bool filled = false
+                    if i > 1
+                        for j = 0 to i - 1
+                            if (gapUp and low[j] <= bot) or (gapDn and high[j] >= top)
+                                filled := true
+                                break
+                    if not filled
+                        array.push(boxes, box.new(bar_index - i - 1, top, bar_index + 20, bot, bgcolor = color.new(color.blue, 85), border_color = color.new(color.blue, 30)))
+                        drawn += 1
+
+    // --- score (the method's logic: buy at multi-touch support in an uptrend, not into resistance)
+    if trend == "up"
+        score += 10, why += "uptrend (HH/HL); "
+    if trend == "down"
+        score -= 10, why += "downtrend (LH/LL); "
+    dS = na(nearSup) ? na : (close - nearSup) / close
+    dR = na(nearRes) ? na : (nearRes - close) / close
+    if not na(dS) and dS <= 0.02
+        score += 10 + math.min(15, supT * 4), why += "on support touched " + str.tostring(supT) + "x; "
+    else if not na(dS) and dS <= 0.05
+        score += 5, why += "support " + str.tostring(dS * 100, "#.#") + "% below; "
+    if not na(dR) and dR <= 0.02
+        score -= 20, why += "under resistance touched " + str.tostring(resT) + "x; "
+    if not na(dS) and dS > 0.10
+        score -= 10, why += "extended above support; "
+    if not na(dS) and not na(dR) and dR > dS * 2 and dR > 0.05
+        score += 5, why += "more room up than down; "
+    score := math.max(0, math.min(100, score))
+
+    if showTable
+        var table t = table.new(position.top_left, 1, 4, bgcolor = color.new(color.black, 30), border_width = 1)
+        lbl = score >= 75 ? "High-probability long setup" : score >= 60 ? "Constructive" : score >= 40 ? "Neutral — wait" : "Poor location to buy"
+        col = score >= 60 ? color.teal : score >= 40 ? color.orange : color.red
+        table.cell(t, 0, 0, str.tostring(score) + "/100 · " + lbl, text_color = col, text_size = size.normal)
+        table.cell(t, 0, 1, "Trend: " + trend, text_color = color.white, text_size = size.small)
+        table.cell(t, 0, 2, "Support " + (na(nearSup) ? "–" : str.tostring(nearSup, format.mintick) + " (" + str.tostring(supT) + "x)") + "   Resistance " + (na(nearRes) ? "–" : str.tostring(nearRes, format.mintick) + " (" + str.tostring(resT) + "x)"), text_color = color.white, text_size = size.small)
+        table.cell(t, 0, 3, why == "" ? "Pattern detection, not a forecast." : why, text_color = color.gray, text_size = size.small)

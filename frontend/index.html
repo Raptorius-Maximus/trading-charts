@@ -45,16 +45,47 @@
         <option value="1W">1W</option>
         <option value="1M">1M</option>
       </select>
-      <label class="ind-toggle"><input type="checkbox" class="pane-ema20"><span>EMA20</span></label>
-      <label class="ind-toggle"><input type="checkbox" class="pane-ema50"><span>EMA50</span></label>
-      <label class="ind-toggle"><input type="checkbox" class="pane-rsi"><span>RSI</span></label>
+      <select class="pane-chart-type" title="Chart type">
+        <option value="candle_solid">Candles</option>
+        <option value="candle_stroke">Hollow candles</option>
+        <option value="ohlc">Bars (OHLC)</option>
+        <option value="area">Area</option>
+      </select>
+      <div class="menu-wrap">
+        <button type="button" class="menu-btn pane-ind-btn" title="Indicators">Indicators ▾</button>
+        <div class="menu pane-ind-menu hidden"></div>
+      </div>
       <select class="pane-draw-tool" title="Draw">
         <option value="">Draw…</option>
-        <option value="trend_line">Trend line</option>
-        <option value="horizontal_line">Horizontal line</option>
-        <option value="fib_retracement">Fib retracement</option>
+        <optgroup label="Lines">
+          <option value="segment">Trend line</option>
+          <option value="rayLine">Ray</option>
+          <option value="straightLine">Extended line</option>
+          <option value="horizontalStraightLine">Horizontal line</option>
+          <option value="horizontalRayLine">Horizontal ray</option>
+          <option value="horizontalSegment">Horizontal segment</option>
+          <option value="verticalStraightLine">Vertical line</option>
+          <option value="priceLine">Price line (label)</option>
+        </optgroup>
+        <optgroup label="Channels &amp; Fib">
+          <option value="parallelStraightLine">Parallel channel</option>
+          <option value="priceChannelLine">Price channel</option>
+          <option value="fibonacciLine">Fib retracement</option>
+        </optgroup>
+        <optgroup label="Shapes &amp; notes">
+          <option value="rect">Rectangle</option>
+          <option value="circle">Circle</option>
+          <option value="polygon">Polygon</option>
+          <option value="arc">Arc</option>
+          <option value="text">Text</option>
+          <option value="simpleAnnotation">Annotation (arrow + text)</option>
+          <option value="simpleTag">Price tag</option>
+        </optgroup>
       </select>
       <button type="button" class="pane-draw-clear" title="Clear drawings">Clear</button>
+      <button type="button" class="pane-scale" title="Price scale: linear / log / percent">Lin</button>
+      <button type="button" class="pane-snap" title="Save chart as PNG">PNG</button>
+      <button type="button" class="pane-max" title="Maximize / restore (Esc)">Max</button>
     </div>
     <div class="pane-ticker">
       <span class="ticker-symbol"></span>
@@ -72,6 +103,6 @@
 
 <script src="/static/vendor/klinecharts.min.js"></script>
 <script src="/static/js/overlays.js"></script>
-<script src="/static/js/app.js?v=11"></script>
+<script src="/static/js/app.js?v=12"></script>
 </body>
 </html>

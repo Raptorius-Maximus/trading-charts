@@ -20,7 +20,7 @@ def main():
         errs = []
         pg.on("pageerror", lambda e: errs.append(str(e)))
         pg.on("console", lambda m: errs.append(m.text) if m.type == "error" else None)
-        pg.goto("http://127.0.0.1:8850/", wait_until="networkidle"); time.sleep(4)
+        pg.goto("http://127.0.0.1:8850/?scratch=1", wait_until="networkidle"); time.sleep(4)
         badges = pg.eval_on_selector_all(".conn-badge", "els=>els.map(e=>e.textContent)")
         prices = pg.eval_on_selector_all(".ticker-price", "els=>els.map(e=>e.textContent)")
         # EMA must be drawn on the candle pane, not in its own strip

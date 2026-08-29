@@ -87,7 +87,7 @@
       { symbol: "AAPL", source: "yfinance", interval: "1D" },
     ];
     const base = presets[i % presets.length];
-    return { ...base, ema20: false, ema50: false, rsi: false, drawings: [] };
+    return { ...base, indicators: [], chartType: "candle_solid", scale: "normal", drawings: [] };
   }
 
   function fmtPrice(v) {
@@ -196,7 +196,12 @@
     }
   }
 
+  // /?scratch=1 -- load the saved layout but never write it back. Used by
+  // the automated browser checks so they cannot disturb the operator's view.
+  const SCRATCH = new URLSearchParams(location.search).get("scratch") === "1";
+
   function scheduleSave() {
+    if (SCRATCH) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(doSave, SAVE_DEBOUNCE_MS);
   }
@@ -266,28 +271,165 @@
   }
 
   // ---------------------------------------------------------------------
-  // Indicators (built into KLineChart -- EMA/RSI computed by the library)
+  // Indicators -- all computed by KLineChart's built-in engine.
+  // config.indicators = [{ name, params: [..] | null }]
   // ---------------------------------------------------------------------
 
-  function syncEMA(state) {
-    if (!state.chart) return;
-    state.chart.removeIndicator({ name: "EMA", paneId: "candle_pane" });
-    const periods = [];
-    if (state.config.ema20) periods.push(20);
-    if (state.config.ema50) periods.push(50);
-    if (periods.length) {
-      state.chart.createIndicator({ name: "EMA", calcParams: periods, paneId: "candle_pane" }, true);
-    }
+  // Overlay indicators draw on the price chart; the rest get their own pane.
+  const INDICATORS = {
+    overlay: [
+      ["MA", "Moving averages", "5,10,30,60"],
+      ["EMA", "Exponential MAs", "6,12,20"],
+      ["SMA", "Smoothed MA", "12,2"],
+      ["BOLL", "Bollinger bands", "20,2"],
+      ["SAR", "Parabolic SAR", "2,2,20"],
+      ["BBI", "Bull-bear index", "3,6,12,24"],
+    ],
+    pane: [
+      ["MACD", "MACD", "12,26,9"],
+      ["RSI", "RSI", "6,12,24"],
+      ["KDJ", "Stochastic KDJ", "9,3,3"],
+      ["OBV", "On-balance volume", "30"],
+      ["CCI", "Commodity channel", "20"],
+      ["DMI", "Directional (ADX)", "14,6"],
+      ["WR", "Williams %R", "6,10,14"],
+      ["ROC", "Rate of change", "12,6"],
+      ["MTM", "Momentum", "6,10"],
+      ["TRIX", "TRIX", "12,9"],
+      ["AO", "Awesome oscillator", "5,34"],
+      ["BIAS", "Bias", "6,12,24"],
+      ["PSY", "Psychological line", "12,6"],
+      ["VR", "Volume ratio", "26,6"],
+      ["CR", "CR energy", "26,10,20,40,60"],
+      ["DMA", "MA difference", "10,50,10"],
+      ["EMV", "Ease of movement", "14,9"],
+      ["PVT", "Price-volume trend", ""],
+      ["AVP", "Average price", ""],
+      ["BRAR", "BRAR sentiment", "26"],
+    ],
+  };
+  const OVERLAY_NAMES = new Set(INDICATORS.overlay.map((x) => x[0]));
+
+  function parseParams(text) {
+    if (!text) return null;
+    const nums = text.split(/[,\s]+/).map((x) => parseFloat(x)).filter((x) => !isNaN(x));
+    return nums.length ? nums : null;
   }
 
-  function syncRSI(state) {
+  // Old layouts stored ema20/ema50/rsi booleans; turn them into the list.
+  function migrateIndicators(config) {
+    if (Array.isArray(config.indicators)) return;
+    const list = [];
+    const emas = [];
+    if (config.ema20) emas.push(20);
+    if (config.ema50) emas.push(50);
+    if (emas.length) list.push({ name: "EMA", params: emas });
+    if (config.rsi) list.push({ name: "RSI", params: null });
+    config.indicators = list;
+    delete config.ema20; delete config.ema50; delete config.rsi;
+  }
+
+  function syncIndicators(state) {
     if (!state.chart) return;
-    if (state.config.rsi && !state.rsiPaneId) {
-      state.rsiPaneId = state.chart.createIndicator("RSI", false);
-    } else if (!state.config.rsi && state.rsiPaneId) {
-      state.chart.removeIndicator({ paneId: state.rsiPaneId });
-      state.rsiPaneId = null;
+    const chart = state.chart;
+    // Drop everything we created before (VOL stays -- it is part of the base chart).
+    (state.indPaneIds || []).forEach((pid) => { try { chart.removeIndicator({ paneId: pid }); } catch (_) {} });
+    OVERLAY_NAMES.forEach((n) => { try { chart.removeIndicator({ name: n, paneId: "candle_pane" }); } catch (_) {} });
+    state.indPaneIds = [];
+    (state.config.indicators || []).forEach((ind) => {
+      const spec = { name: ind.name };
+      if (ind.params && ind.params.length) spec.calcParams = ind.params;
+      try {
+        if (OVERLAY_NAMES.has(ind.name)) {
+          chart.createIndicator(Object.assign(spec, { paneId: "candle_pane" }), true);
+        } else {
+          const pid = chart.createIndicator(spec, false);
+          if (pid) state.indPaneIds.push(pid);
+        }
+      } catch (e) { console.warn("indicator failed", ind.name, e); }
+    });
+  }
+
+  function buildIndicatorMenu(state, menuEl) {
+    const cfg = state.config;
+    menuEl.innerHTML = "";
+    const groups = [["On the price chart", INDICATORS.overlay], ["In their own panel", INDICATORS.pane]];
+    groups.forEach(([title, items]) => {
+      const h = document.createElement("h6"); h.textContent = title; menuEl.appendChild(h);
+      items.forEach(([name, desc, defParams]) => {
+        const cur = (cfg.indicators || []).find((i) => i.name === name);
+        const label = document.createElement("label");
+        const cb = document.createElement("input"); cb.type = "checkbox"; cb.checked = !!cur;
+        const txt = document.createElement("span"); txt.textContent = name + " ";
+        const d = document.createElement("span"); d.className = "desc"; d.textContent = desc;
+        const params = document.createElement("input"); params.className = "params"; params.type = "text";
+        params.placeholder = defParams; params.title = "Periods (comma-separated)";
+        params.value = cur && cur.params ? cur.params.join(",") : "";
+        if (!defParams) params.style.visibility = "hidden";
+        const apply = () => {
+          cfg.indicators = (cfg.indicators || []).filter((i) => i.name !== name);
+          if (cb.checked) cfg.indicators.push({ name, params: parseParams(params.value) });
+          syncIndicators(state);
+          scheduleSave();
+        };
+        cb.addEventListener("change", apply);
+        params.addEventListener("change", () => { if (cb.checked) apply(); });
+        params.addEventListener("click", (e) => e.stopPropagation());
+        label.append(cb, txt, d, params);
+        menuEl.appendChild(label);
+      });
+    });
+  }
+
+  document.addEventListener("keydown", (e) => {
+    if (e.key === "Escape") {
+      const m = document.querySelector(".pane.maximized");
+      if (m) { m.classList.remove("maximized"); document.body.classList.remove("has-max"); Object.values(paneStates).forEach((s) => s.chart && s.chart.resize()); }
+      document.querySelectorAll(".menu").forEach((x) => x.classList.add("hidden"));
     }
+  });
+
+  // Close any open menu on outside click.
+  document.addEventListener("mousedown", (e) => {
+    document.querySelectorAll(".menu:not(.hidden)").forEach((m) => {
+      if (!m.parentElement.contains(e.target)) m.classList.add("hidden");
+    });
+  });
+
+  // ---------------------------------------------------------------------
+  // Chart type / price scale / maximize / snapshot
+  // ---------------------------------------------------------------------
+
+  function applyChartType(state) {
+    if (!state.chart) return;
+    state.chart.setStyles({ candle: { type: state.config.chartType || "candle_solid" } });
+  }
+
+  const SCALES = ["normal", "logarithm", "percentage"];
+  const SCALE_LABEL = { normal: "Lin", logarithm: "Log", percentage: "%" };
+  function applyScale(state) {
+    if (!state.chart) return;
+    const name = state.config.scale || "normal";
+    try { state.chart.overrideYAxis({ paneId: "candle_pane", name }); } catch (e) { console.warn("scale", e); }
+    const btn = state.el.querySelector(".pane-scale");
+    btn.textContent = SCALE_LABEL[name];
+    btn.classList.toggle("active", name !== "normal");
+  }
+
+  function toggleMaximize(state) {
+    const on = !state.el.classList.contains("maximized");
+    document.querySelectorAll(".pane.maximized").forEach((p) => p.classList.remove("maximized"));
+    state.el.classList.toggle("maximized", on);
+    document.body.classList.toggle("has-max", on);
+    setTimeout(() => state.chart && state.chart.resize(), 30);
+  }
+
+  function snapshot(state) {
+    if (!state.chart) return;
+    const url = state.chart.getConvertPictureUrl(true, "png", "#0e1117");
+    const a = document.createElement("a");
+    a.href = url; a.download = `${state.config.symbol}-${state.config.interval}.png`;
+    document.body.appendChild(a); a.click(); a.remove();
   }
 
   // ---------------------------------------------------------------------
@@ -395,8 +537,7 @@
       setChartData(state, body.candles || []);
       if (state.chart) {
         restoreDrawings(state);
-        syncEMA(state);
-        syncRSI(state);
+        syncIndicators(state);
       }
       const last = state.candles[state.candles.length - 1];
       flashTicker(state, last ? last.close : null, null);
@@ -507,15 +648,16 @@
     el.querySelector(".pane-source").value = config.source;
     el.querySelector(".pane-symbol").value = config.symbol;
     el.querySelector(".pane-interval").value = config.interval;
-    el.querySelector(".pane-ema20").checked = !!config.ema20;
-    el.querySelector(".pane-ema50").checked = !!config.ema50;
-    el.querySelector(".pane-rsi").checked = !!config.rsi;
+    migrateIndicators(config);
+    el.querySelector(".pane-chart-type").value = config.chartType || "candle_solid";
 
     const chartEl = el.querySelector(".pane-chart");
     const chart = window.klinecharts.init(chartEl, { styles: DARK_STYLES });
     state.chart = chart;
     installDataLoader(state);
     chart.createIndicator("VOL", false);
+    applyChartType(state);
+    applyScale(state);
 
     // --- wiring ---
     const symbolInput = el.querySelector(".pane-symbol");
@@ -593,21 +735,26 @@
       scheduleSave();
       loadAndSubscribe(state);
     });
-    el.querySelector(".pane-ema20").addEventListener("change", (e) => {
-      config.ema20 = e.target.checked;
-      syncEMA(state);
+    el.querySelector(".pane-chart-type").addEventListener("change", (e) => {
+      config.chartType = e.target.value;
+      applyChartType(state);
       scheduleSave();
     });
-    el.querySelector(".pane-ema50").addEventListener("change", (e) => {
-      config.ema50 = e.target.checked;
-      syncEMA(state);
+    const indBtn = el.querySelector(".pane-ind-btn");
+    const indMenu = el.querySelector(".pane-ind-menu");
+    indBtn.addEventListener("click", () => {
+      const open = indMenu.classList.contains("hidden");
+      document.querySelectorAll(".menu").forEach((m) => m.classList.add("hidden"));
+      if (open) { buildIndicatorMenu(state, indMenu); indMenu.classList.remove("hidden"); }
+    });
+    el.querySelector(".pane-scale").addEventListener("click", () => {
+      const i = SCALES.indexOf(config.scale || "normal");
+      config.scale = SCALES[(i + 1) % SCALES.length];
+      applyScale(state);
       scheduleSave();
     });
-    el.querySelector(".pane-rsi").addEventListener("change", (e) => {
-      config.rsi = e.target.checked;
-      syncRSI(state);
-      scheduleSave();
-    });
+    el.querySelector(".pane-snap").addEventListener("click", () => snapshot(state));
+    el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));
     el.querySelector(".pane-draw-tool").addEventListener("change", (e) => {
       const tool = e.target.value;
       e.target.value = "";

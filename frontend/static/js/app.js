@@ -201,7 +201,7 @@
   const SCRATCH = new URLSearchParams(location.search).get("scratch") === "1";
 
   function scheduleSave() {
-    if (SCRATCH) return;
+    if (SCRATCH || window.READ_ONLY) return;
     if (saveTimer) clearTimeout(saveTimer);
     saveTimer = setTimeout(doSave, SAVE_DEBOUNCE_MS);
   }
@@ -214,6 +214,14 @@
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify(payload),
       });
+      if (res.status === 403) {
+        // The public hostname is read-only by design: viewing works, saving
+        // is only possible from the LAN address. Say so, once, and stop trying.
+        window.READ_ONLY = true;
+        saveIndicator.textContent = "read-only (public link) — changes are not saved";
+        saveIndicator.classList.add("show", "sticky");
+        return;
+      }
       if (!res.ok) throw new Error(`status ${res.status}`);
       flashSaveIndicator("saved");
     } catch (e) {
@@ -531,6 +539,8 @@
     normalizeSource(state);
     setConnState(state, "connecting");
     state.el.querySelector(".ticker-symbol").textContent = `${state.config.symbol} · ${state.config.interval}`;
+    state.el.dataset.symbol = state.config.symbol;
+    window.dispatchEvent(new CustomEvent("pane-symbol", { detail: state.config.symbol }));
     try {
       const body = await fetchCandles(state.config);
       setQualityBadge(state, body.quality, body.quality_label);
@@ -782,6 +792,20 @@
       createPane(i);
     }
   }
+
+  // Small public surface for the sidebar (watchlist click -> chart).
+  window.chartsApp = {
+    setSymbol(index, symbol) {
+      const state = paneStates[index] || paneStates[Object.keys(paneStates)[0]];
+      if (!state) return;
+      state.config.symbol = String(symbol).toUpperCase();
+      state.config.source = "yfinance";
+      state.el.querySelector(".pane-symbol").value = state.config.symbol;
+      state.el.querySelector(".pane-source").value = "yfinance";
+      scheduleSave();
+      loadAndSubscribe(state);
+    },
+  };
 
   countSelect.addEventListener("change", (e) => {
     numCharts = parseInt(e.target.value, 10);

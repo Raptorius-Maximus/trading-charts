@@ -34,7 +34,7 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import fundamentals, layout_store
+from . import fundamentals, layout_store, quotes
 from .data_sources import SOURCES, DataSourceError
 from .hyperliquid_stream import manager as hl_manager
 
@@ -52,6 +52,7 @@ FRONTEND_DIR = ROOT / "frontend"
 async def lifespan(app: FastAPI):
     layout_store.ensure_default_on_disk()
     fundamentals.maybe_refresh_on_startup()
+    quotes.start_alert_thread()
     logger.info("startup complete; sources=%s", list(SOURCES.keys()))
     yield
     logger.info("shutting down")
@@ -138,6 +139,53 @@ async def api_screener_add(symbol: str = Query(..., min_length=1)) -> JSONRespon
     if not row.get("ok"):
         raise HTTPException(status_code=502, detail=row.get("error") or f"no data for '{symbol}'")
     return JSONResponse(row)
+
+
+@app.get("/api/quotes")
+async def api_quotes(symbols: str = Query(..., min_length=1)) -> JSONResponse:
+    syms = [s for s in symbols.split(",") if s.strip()][:60]
+    rows = await asyncio.to_thread(quotes.get_quotes, syms)
+    return JSONResponse({"quotes": rows})
+
+
+@app.get("/api/watchlist")
+async def api_watchlist() -> JSONResponse:
+    return JSONResponse({"symbols": quotes.load_watchlist()})
+
+
+@app.put("/api/watchlist")
+async def api_watchlist_put(body: dict) -> JSONResponse:
+    syms = body.get("symbols")
+    if not isinstance(syms, list):
+        raise HTTPException(status_code=400, detail="body must be {symbols: [...]}")
+    return JSONResponse({"symbols": quotes.save_watchlist(syms)})
+
+
+@app.get("/api/alerts")
+async def api_alerts() -> JSONResponse:
+    return JSONResponse({"alerts": quotes.load_alerts()})
+
+
+@app.post("/api/alerts")
+async def api_alerts_add(body: dict) -> JSONResponse:
+    try:
+        alert = quotes.add_alert(str(body.get("symbol", "")), str(body.get("condition", "")), float(body.get("price")), str(body.get("note", "")))
+    except (TypeError, ValueError) as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse(alert)
+
+
+@app.delete("/api/alerts/{alert_id}")
+async def api_alerts_delete(alert_id: str) -> JSONResponse:
+    if not quotes.delete_alert(alert_id):
+        raise HTTPException(status_code=404, detail="no such alert")
+    return JSONResponse({"ok": True})
+
+
+@app.post("/api/alerts/{alert_id}/seen")
+async def api_alerts_seen(alert_id: str) -> JSONResponse:
+    quotes.mark_seen(alert_id)
+    return JSONResponse({"ok": True})
 
 
 @app.get("/api/layout")

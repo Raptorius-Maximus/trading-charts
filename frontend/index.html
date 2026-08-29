@@ -19,10 +19,33 @@
       <option value="8">8</option>
     </select>
     <span id="save-indicator" class="save-indicator" aria-live="polite"></span>
+    <button type="button" id="side-toggle" class="menu-btn" title="Watchlist &amp; alerts">☰ Watchlist</button>
   </div>
 </header>
 
+<div class="workspace">
 <main id="charts-grid" class="charts-grid" data-count="4"></main>
+<aside id="sidebar" class="sidebar">
+  <section class="side-section">
+    <h5>Watchlist <span id="wl-count" class="dim"></span></h5>
+    <div class="side-add"><input type="text" id="wl-add" placeholder="Add symbol (e.g. VOLV-B.ST)"><button type="button" id="wl-add-btn">+</button></div>
+    <table class="wl" id="wl"><tbody></tbody></table>
+    <div class="dim tiny">Click a row to load it in the first chart. Prices delayed ~15 min.</div>
+  </section>
+  <section class="side-section">
+    <h5>Price alerts</h5>
+    <div class="side-add alert-form">
+      <input type="text" id="al-sym" placeholder="Symbol" size="9">
+      <select id="al-cond"><option value="above">rises above</option><option value="below">falls below</option></select>
+      <input type="number" id="al-price" placeholder="Price" step="any" size="7">
+      <button type="button" id="al-add-btn">Set</button>
+    </div>
+    <div id="al-list" class="al-list"></div>
+    <div class="dim tiny">Checked on the server every minute — fires even when this page is closed. <a href="#" id="al-notify">Enable desktop notifications</a></div>
+  </section>
+</aside>
+</div>
+<div id="toasts" class="toasts"></div>
 
 <template id="pane-template">
   <section class="pane" data-pane-id="">
@@ -92,6 +115,7 @@
       <span class="ticker-price">--</span>
       <span class="quality-badge"></span>
       <span class="conn-badge"></span>
+      <span class="ticker-info"></span>
     </div>
     <div class="pane-body">
       <div class="pane-chart"></div>
@@ -103,6 +127,7 @@
 
 <script src="/static/vendor/klinecharts.min.js"></script>
 <script src="/static/js/overlays.js"></script>
-<script src="/static/js/app.js?v=12"></script>
+<script src="/static/js/app.js?v=14"></script>
+<script src="/static/js/sidebar.js?v=2"></script>
 </body>
 </html>

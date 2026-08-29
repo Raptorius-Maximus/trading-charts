@@ -9,3 +9,6 @@ run.pid
 uvicorn.pid
 data/fundamentals.json
 data/fundamentals.tmp
+data/watchlist.json
+data/alerts.json
+data/*.tmp

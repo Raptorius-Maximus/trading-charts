@@ -108,7 +108,7 @@
     const c = candles;
     const n = c.length;
     if (n < 40) return null;
-    const k = Math.max(3, Math.min(8, Math.round(n / 50)));
+    const k = n < 150 ? 2 : Math.max(3, Math.min(8, Math.round(n / 50)));
     const a = atr(c, 14);
     const price = c[n - 1].close;
     const tol = Math.max(a * 0.6, price * 0.004);
@@ -206,6 +206,10 @@
     if (r.ns) parts.push(`Support: <b>${f(r.ns.v)}</b> (${r.ns.kind}, ${r.ns.touches}×, ${(r.dS * 100).toFixed(1)}% below)`);
     if (r.nr) parts.push(`Resistance: <b>${f(r.nr.v)}</b> (${r.nr.kind}, ${r.nr.touches}×, ${(r.dR * 100).toFixed(1)}% above)`);
     parts.push(`Lines: ${r.sup.length} support, ${r.res.length} resistance (3+ touches), ${r.below.length + r.above.length} levels, ${r.gaps.length} open gaps`);
+    if (r.sup.length + r.res.length === 0) {
+      const far = r.n < 150 ? "Too few bars for clean pivots on this timeframe" : "No 3-touch trendline within 20% of today's price";
+      parts.push(`<span class="k-warn">${far} — the method needs structure near the current price. Try the 1Y or 2Y button (daily bars).</span>`);
+    }
     return parts.join(" · ") + (r.why.length ? `<div class="ta-why">${r.why.join("; ")}.</div>` : "") +
       `<div class="ta-why dim">Score = how well this spot matches the method (buy at multi-touch support in an uptrend, not into resistance). Pattern detection on past prices — not a forecast.</div>`;
   }

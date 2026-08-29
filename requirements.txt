@@ -39,3 +39,5 @@ uvloop==0.22.1
 watchfiles==1.2.0
 websockets==17.1
 yfinance==1.7.0
+anthropic>=1.2
+playwright

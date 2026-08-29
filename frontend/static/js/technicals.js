@@ -105,7 +105,7 @@
     return out.slice(-4);
   }
 
-  function analyse(candles) {
+  function analyse(candles, vp) {
     const c = candles;
     const n = c.length;
     if (n < 40) return null;
@@ -113,6 +113,7 @@
     const a = atr(c, 14);
     const price = c[n - 1].close;
     const tol = Math.max(a * 0.6, price * 0.004);
+    const f0 = (v) => v.toFixed(v >= 100 ? 2 : 3);
     const { highs, lows } = pivots(c, k);
     const res = findTrendlines(c, highs, "res", tol);
     const sup = findTrendlines(c, lows, "sup", tol);
@@ -174,7 +175,20 @@
     const t2 = nr2 ? (nr2.v - price) / price : null;
     const rr1 = riskPct && t1 != null ? t1 / riskPct : null;
     const rr2 = riskPct && t2 != null ? t2 / riskPct : null;
-    const rr = { stop, riskPct, t1, t1v: nr ? nr.v : null, t2, t2v: nr2 ? nr2.v : null, rr1, rr2 };
+    const rr = { stop, riskPct, t1, t1v: nr ? nr.v : null, t2, t2v: nr2 ? nr2.v : null, rr1, rr2, vp: [] };
+    // Volume profile confluence: where the crowd did most business vs our lines.
+    if (vp) {
+      const near = (a, b) => Math.abs(a - b) / price <= 0.015;
+      if (ns && near(ns.v, vp.pocP)) { score += 8; rr.vp.push(`support ${f0(ns.v)} has the POC behind it — where most shares changed hands; a well-defended stop`); }
+      if (nr && near(nr.v, vp.pocP)) rr.vp.push(`1st resistance ${f0(nr.v)} is also the POC — expect a fight there (sellers who bought at that price)`);
+      if (!ns || !near(ns.v, vp.pocP)) {
+        if (vp.pocP > price * 1.015 && (!nr || vp.pocP < nr.v * 0.985)) { rr.vp.push(`POC ${f0(vp.pocP)} sits between you and resistance: +${((vp.pocP / price - 1) * 100).toFixed(1)}% — a magnet target with better odds than a line alone`); }
+        if (vp.pocP < price * 0.985 && (!ns || vp.pocP > ns.v * 1.015)) { rr.vp.push(`POC ${f0(vp.pocP)} is below you (−${((1 - vp.pocP / price) * 100).toFixed(1)}%) and above your stop — a pull-back there is normal, not a failure`); }
+      }
+      if (price > vp.vah) { score -= 5; rr.vp.push(`price is above the value area (${f0(vp.val)}–${f0(vp.vah)}): you are paying up; POC ${f0(vp.pocP)} is the pull-back risk, −${((1 - vp.pocP / price) * 100).toFixed(1)}%`); }
+      if (price < vp.val) { rr.vp.push(`price is below the value area: a "return to value" trade — VAL ${f0(vp.val)} (+${((vp.val / price - 1) * 100).toFixed(1)}%) then POC ${f0(vp.pocP)} (+${((vp.pocP / price - 1) * 100).toFixed(1)}%) are the targets`); }
+      score = Math.max(0, Math.min(100, score));
+    }
     return { n, tol, price, trend, res, sup, below, above, gaps: gp, ns, nr, nr2, dS, dR, confluenceS, confluenceR, wedge, score, label, why, rr };
   }
 
@@ -223,6 +237,7 @@
       if (x.rr1 != null) s += ` · Risk/reward <b>${x.rr1.toFixed(1)}:1</b>` + (x.rr2 != null ? ` (to 2nd: <b>${x.rr2.toFixed(1)}:1</b>)` : "") + (x.rr1 >= 3 ? ' <span class="up">✓ 3:1 or better</span>' : (x.rr2 != null && x.rr2 >= 2.5) ? ` <span class="k-warn">only pays if ${f(x.t1v)} breaks — that is the decision point</span>` : x.rr1 < 1.5 ? ' <span class="down">poor — not worth the risk here</span>' : "");
       parts.push(`<div class="ta-rr">${s}</div>`);
     }
+    if (x.vp && x.vp.length) parts.push(`<div class="ta-rr"><b class="vp-tag">POC check:</b> ${x.vp.join(" · ")}</div>`);
     parts.push(`Lines: ${r.sup.length} support, ${r.res.length} resistance (3+ touches), ${r.below.length + r.above.length} levels, ${r.gaps.length} open gaps`);
     if (r.sup.length + r.res.length === 0) {
       const far = r.n < 150 ? "Too few bars for clean pivots on this timeframe" : "No 3-touch trendline within 20% of today's price";

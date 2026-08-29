@@ -692,7 +692,9 @@
     if (!state.config.autoTA) { window.autoTA.clear(state.chart); el.classList.add("hidden"); btn.classList.remove("active"); return; }
     // Analyse the bars on screen (the chosen range), not the whole history.
     const bars = visibleBars(state);
-    const r = window.autoTA.analyse(bars);
+    // The volume profile is cheap, so it always feeds the read even when not drawn.
+    const vp = window.volProfile ? window.volProfile.compute(bars) : null;
+    const r = window.autoTA.analyse(bars, vp);
     if (r) window.autoTA.draw(state.chart, bars, r); else window.autoTA.clear(state.chart);
     el.innerHTML = window.autoTA.readout(r);
     el.classList.remove("hidden"); btn.classList.add("active");
@@ -1060,7 +1062,7 @@
     wireReplay(state);
     wireRanges(state);
     el.querySelector(".pane-ta").addEventListener("click", () => { config.autoTA = !config.autoTA; scheduleSave(); syncAutoTA(state); });
-    el.querySelector(".pane-vp").addEventListener("click", () => { config.volProfile = !config.volProfile; scheduleSave(); syncVolProfile(state); });
+    el.querySelector(".pane-vp").addEventListener("click", () => { config.volProfile = !config.volProfile; scheduleSave(); syncVolProfile(state); if (config.autoTA) syncAutoTA(state); });
     el.querySelector(".pane-analyse").addEventListener("click", () => window.stockAnalysis && window.stockAnalysis.open(config.symbol));
     if (config.compare) { const b = el.querySelector(".pane-cmp"); b.classList.add("active"); b.textContent = `vs ${config.compare}`; }
     el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));

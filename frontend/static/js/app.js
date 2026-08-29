@@ -30,6 +30,7 @@
   // Chart colours follow the page theme (theme.js); rebuilt on every change.
   function chartStyles() {
     const t = window.currentTheme || { grid: "#20252f", border: "#262d38", dim: "#7d8590", text: "#d8dee9", panel: "#161b22" };
+    const fs = Math.round(12 * (window.textScale || 1.2));
     return {
     grid: {
       horizontal: { color: t.grid },
@@ -53,27 +54,32 @@
           upColor: "#26a69a",
           downColor: "#ef5350",
           noChangeColor: "#888888",
+          text: { size: fs },
         },
+        high: { textSize: fs },
+        low: { textSize: fs },
       },
+      tooltip: { title: { size: fs }, legend: { size: fs } },
     },
     indicator: {
       lines: [{ color: "#4f8ff7" }, { color: "#d29922" }, { color: "#7ee8d8" }],
       lastValueMark: { show: false },
+      tooltip: { title: { size: fs }, legend: { size: fs } },
     },
     xAxis: {
       axisLine: { color: t.border },
       tickLine: { color: t.border },
-      tickText: { color: t.dim },
+      tickText: { color: t.dim, size: fs },
     },
     yAxis: {
       axisLine: { color: t.border },
       tickLine: { color: t.border },
-      tickText: { color: t.dim },
+      tickText: { color: t.dim, size: fs },
     },
     separator: { color: t.border },
     crosshair: {
-      horizontal: { line: { color: t.dim }, text: { backgroundColor: t.border, color: t.text } },
-      vertical: { line: { color: t.dim }, text: { backgroundColor: t.border, color: t.text } },
+      horizontal: { line: { color: t.dim }, text: { backgroundColor: t.border, color: t.text, size: fs } },
+      vertical: { line: { color: t.dim }, text: { backgroundColor: t.border, color: t.text, size: fs } },
     },
     };
   }

@@ -55,10 +55,35 @@
     input.addEventListener("change", () => { save({ bg: input.value }); });
     custom.addEventListener("mousedown", (e) => e.stopPropagation());
     menu.appendChild(custom);
+    buildSizeRows(menu);
   }
 
-  window.chartsTheme = { PRESETS, apply, load };
+  // ---- text size (Normal / Large / Extra large). Default: Large.
+  const SIZES = { normal: ["Normal", 1.0], large: ["Large", 1.2], xl: ["Extra large", 1.4] };
+  function applySize(key) {
+    const scale = (SIZES[key] || SIZES.large)[1];
+    document.documentElement.style.fontSize = (16 * scale) + "px";
+    window.textScale = scale;
+    if (window.chartsApp && window.chartsApp.restyle) window.chartsApp.restyle();
+  }
+  function loadSize() {
+    let k = "large";
+    try { k = localStorage.getItem("charts.textsize") || "large"; } catch (_) {}
+    applySize(k);
+  }
+  function buildSizeRows(menu) {
+    const h = document.createElement("div"); h.className = "row meta"; h.textContent = "Text size"; h.style.cursor = "default"; menu.appendChild(h);
+    Object.entries(SIZES).forEach(([key, [label]]) => {
+      const row = document.createElement("div"); row.className = "row";
+      row.innerHTML = `<span>${label}</span>`;
+      row.addEventListener("click", () => { applySize(key); try { localStorage.setItem("charts.textsize", key); } catch (_) {} menu.classList.add("hidden"); });
+      menu.appendChild(row);
+    });
+  }
+
+  window.chartsTheme = { PRESETS, apply, load, applySize };
   load();
+  loadSize();
   document.addEventListener("DOMContentLoaded", () => {
     const btn = document.getElementById("theme-btn"), menu = document.getElementById("theme-menu");
     if (!btn || !menu) return;

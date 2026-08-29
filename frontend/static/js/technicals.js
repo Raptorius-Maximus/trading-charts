@@ -134,7 +134,7 @@
       .concat(below.map((l) => ({ v: l.price, touches: l.touches, kind: "level" }))).sort((x, y) => y.v - x.v);
     const resNow = res.map((l) => ({ v: l.at(n - 1), touches: l.touches, kind: "trendline" })).filter((x) => x.v >= price - tol)
       .concat(above.map((l) => ({ v: l.price, touches: l.touches, kind: "level" }))).sort((x, y) => x.v - y.v);
-    const ns = supNow[0], nr = resNow[0];
+    const ns = supNow[0], nr = resNow[0], nr2 = resNow[1];
     const dS = ns ? (price - ns.v) / price : null, dR = nr ? (nr.v - price) / price : null;
     const confluenceS = supNow.length >= 2 && Math.abs(supNow[0].v - supNow[1].v) <= tol * 2;
     const confluenceR = resNow.length >= 2 && Math.abs(resNow[0].v - resNow[1].v) <= tol * 2;
@@ -167,7 +167,15 @@
     score = Math.max(0, Math.min(100, score));
     const label = score >= 75 ? "High-probability long setup" : score >= 60 ? "Constructive" : score >= 40 ? "Neutral — wait" : "Poor location to buy";
 
-    return { n, tol, price, trend, res, sup, below, above, gaps: gp, ns, nr, dS, dR, confluenceS, confluenceR, wedge, score, label, why };
+    // Risk / reward: stop just under nearest support, targets at the resistances above.
+    const stop = ns ? ns.v - tol : null;
+    const riskPct = stop ? (price - stop) / price : null;
+    const t1 = nr ? (nr.v - price) / price : null;
+    const t2 = nr2 ? (nr2.v - price) / price : null;
+    const rr1 = riskPct && t1 != null ? t1 / riskPct : null;
+    const rr2 = riskPct && t2 != null ? t2 / riskPct : null;
+    const rr = { stop, riskPct, t1, t1v: nr ? nr.v : null, t2, t2v: nr2 ? nr2.v : null, rr1, rr2 };
+    return { n, tol, price, trend, res, sup, below, above, gaps: gp, ns, nr, nr2, dS, dR, confluenceS, confluenceR, wedge, score, label, why, rr };
   }
 
   // ---------- drawing (KLineChart overlays, grouped so they can be removed together)
@@ -206,6 +214,15 @@
     parts.push(`Trend: <b>${r.trend === "up" ? "up (HH/HL)" : r.trend === "down" ? "down (LH/LL)" : "sideways"}</b>`);
     if (r.ns) parts.push(`Support: <b>${f(r.ns.v)}</b> (${r.ns.kind}, ${r.ns.touches}×, ${(r.dS * 100).toFixed(1)}% below)`);
     if (r.nr) parts.push(`Resistance: <b>${f(r.nr.v)}</b> (${r.nr.kind}, ${r.nr.touches}×, ${(r.dR * 100).toFixed(1)}% above)`);
+    const x = r.rr, pc = (v) => (v * 100).toFixed(1) + "%";
+    if (x.riskPct != null || x.t1 != null) {
+      let s = "";
+      if (x.t1 != null) s += `Up to 1st resistance <b>${f(x.t1v)}</b>: <b class="up">+${pc(x.t1)}</b>`;
+      if (x.t2 != null) s += ` · 2nd <b>${f(x.t2v)}</b>: <b class="up">+${pc(x.t2)}</b>`;
+      if (x.riskPct != null) s += ` · Stop below support <b>${f(x.stop)}</b>: <b class="down">−${pc(x.riskPct)}</b>`;
+      if (x.rr1 != null) s += ` · Risk/reward <b>${x.rr1.toFixed(1)}:1</b>` + (x.rr2 != null ? ` (to 2nd: <b>${x.rr2.toFixed(1)}:1</b>)` : "") + (x.rr1 >= 3 || (x.rr2 != null && x.rr2 >= 3) ? ' <span class="up">✓ 3:1 or better</span>' : x.rr1 < 1.5 && (x.rr2 == null || x.rr2 < 3) ? ' <span class="down">poor — not worth the risk here</span>' : "");
+      parts.push(`<div class="ta-rr">${s}</div>`);
+    }
     parts.push(`Lines: ${r.sup.length} support, ${r.res.length} resistance (3+ touches), ${r.below.length + r.above.length} levels, ${r.gaps.length} open gaps`);
     if (r.sup.length + r.res.length === 0) {
       const far = r.n < 150 ? "Too few bars for clean pivots on this timeframe" : "No 3-touch trendline within 20% of today's price";

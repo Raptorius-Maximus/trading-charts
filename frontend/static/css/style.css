@@ -390,3 +390,4 @@ table.wl td.rm:hover { color: var(--red); }
 .pane-vp-read { padding: 5px 10px; border-bottom: 1px solid var(--panel-border); font-size: 0.8rem; color: var(--text-dim); line-height: 1.45; }
 .pane-vp-read b { color: var(--text); }
 .vp-tag { color: #ab66ff !important; }
+.ta-rr { margin: 2px 0; }

@@ -188,6 +188,37 @@ async def api_alerts_seen(alert_id: str) -> JSONResponse:
     return JSONResponse({"ok": True})
 
 
+@app.get("/api/layouts")
+async def api_layouts() -> JSONResponse:
+    return JSONResponse({"layouts": layout_store.list_layouts()})
+
+
+@app.post("/api/layouts/{name}")
+async def api_layouts_save(name: str, layout: dict) -> JSONResponse:
+    if "numCharts" not in layout or "panes" not in layout:
+        raise HTTPException(status_code=400, detail="layout must include numCharts and panes")
+    try:
+        layout_store.save_named_layout(name, layout)
+    except ValueError as exc:
+        raise HTTPException(status_code=400, detail=str(exc)) from exc
+    return JSONResponse({"ok": True})
+
+
+@app.get("/api/layouts/{name}")
+async def api_layouts_get(name: str) -> JSONResponse:
+    d = layout_store.load_named_layout(name)
+    if d is None:
+        raise HTTPException(status_code=404, detail="no such layout")
+    return JSONResponse(d)
+
+
+@app.delete("/api/layouts/{name}")
+async def api_layouts_delete(name: str) -> JSONResponse:
+    if not layout_store.delete_named_layout(name):
+        raise HTTPException(status_code=404, detail="no such layout")
+    return JSONResponse({"ok": True})
+
+
 @app.get("/api/layout")
 async def get_layout() -> JSONResponse:
     return JSONResponse(layout_store.load_layout())

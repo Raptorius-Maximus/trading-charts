@@ -136,7 +136,8 @@
       getBars: ({ type, callback }) => {
         // The chart asks for history when scrolling to the edge; we hold
         // one fixed window from the backend, so only the initial load has data.
-        callback(type === "init" ? toKLineData(state.candles) : [], false);
+        const src = state.replay ? state.candles.slice(0, state.replay.pos) : state.candles;
+        callback(type === "init" ? toKLineData(src) : [], false);
       },
       subscribeBar: ({ callback }) => { state.liveCb = callback; },
       unsubscribeBar: () => { state.liveCb = null; },
@@ -248,6 +249,7 @@
       live: "live",
       reconnecting: "reconnecting…",
       polling: "polling",
+      replay: "replay",
       error: "error",
     };
     badge.textContent = labels[connState] || connState;
@@ -441,6 +443,172 @@
   }
 
   // ---------------------------------------------------------------------
+  // Compare: a second symbol drawn as a line on the price pane, rebased so
+  // both start at the same value (i.e. a relative-performance overlay).
+  // ---------------------------------------------------------------------
+
+  window.klinecharts.registerIndicator({
+    name: "CMP",
+    shortName: "Compare",
+    series: "price",
+    precision: 2,
+    figures: [{ key: "cmp", title: "", type: "line" }],
+    calc: (dataList, indicator) => {
+      // Bars of two exchanges rarely share exact timestamps (different
+      // midnights / session opens), so match each of our bars to the latest
+      // bar of the other series that is not later than ours + half a bar.
+      const ext = indicator.extendData || {};
+      const times = ext.times || [], vals = ext.vals || [];
+      const tol = ext.tol || 0;
+      let j = 0;
+      return dataList.map((d) => {
+        const limit = d.timestamp + tol;
+        while (j + 1 < times.length && times[j + 1] <= limit) j++;
+        const ok = times.length && times[j] <= limit && (j === 0 ? true : times[j] > d.timestamp - 2 * tol - 1);
+        return { cmp: ok ? vals[j] : null };
+      });
+    },
+  });
+
+  async function setCompare(state, symbol) {
+    const chart = state.chart;
+    try { chart.removeIndicator({ name: "CMP", paneId: "candle_pane" }); } catch (_) {}
+    state.config.compare = symbol || null;
+    // A relative-performance overlay reads best on the percent scale.
+    if (symbol && (state.config.scale || "normal") === "normal") { state.config.scale = "percentage"; applyScale(state); }
+    state.el.querySelector(".pane-cmp").classList.toggle("active", !!symbol);
+    state.el.querySelector(".pane-cmp").textContent = symbol ? `vs ${symbol}` : "Compare";
+    scheduleSave();
+    if (!symbol) return;
+    let body;
+    try {
+      body = await fetchCandles({ source: "yfinance", symbol, interval: state.config.interval });
+    } catch (e) { setConnState(state, "error", `compare: ${e.message}`); return; }
+    const other = body.candles || [];
+    const base = state.candles;
+    if (!other.length || !base.length) return;
+    // Rebase: scale the other series so its first overlapping close equals ours.
+    const firstTs = Math.max(base[0].time, other[0].time);
+    const b0 = base.find((c) => c.time >= firstTs), o0 = other.find((c) => c.time >= firstTs);
+    const k = b0 && o0 && o0.close ? b0.close / o0.close : 1;
+    const times = other.map((c) => c.time * 1000);
+    const vals = other.map((c) => c.close * k);
+    const step = base.length > 1 ? (base[1].time - base[0].time) * 1000 : 3600000;
+    chart.createIndicator({ name: "CMP", paneId: "candle_pane", extendData: { times, vals, tol: step / 2 }, shortName: `vs ${symbol}` }, true);
+  }
+
+  // ---------------------------------------------------------------------
+  // Bar replay: show the first N bars and step / play forward.
+  // ---------------------------------------------------------------------
+
+  function replayRender(state) {
+    const rp = state.replay; if (!rp) return;
+    const n = state.candles.length;
+    rp.pos = Math.max(10, Math.min(n, rp.pos));
+    state.chart.resetData();
+    const bar = state.candles[rp.pos - 1];
+    state.el.querySelector(".rp-pos").max = String(n);
+    state.el.querySelector(".rp-pos").value = String(rp.pos);
+    state.el.querySelector(".rp-info").textContent = bar ? `${rp.pos}/${n} · ${new Date(bar.time * 1000).toLocaleString()} · ${fmtPrice(bar.close)}` : "";
+    flashTicker(state, bar ? bar.close : null, null);
+    if (rp.pos >= n) replayPause(state);
+  }
+  function replayPause(state) {
+    const rp = state.replay; if (!rp) return;
+    clearInterval(rp.timer); rp.timer = null;
+    state.el.querySelector(".rp-play").textContent = "▶";
+  }
+  function replayPlay(state) {
+    const rp = state.replay; if (!rp || rp.timer) return;
+    const speed = parseInt(state.el.querySelector(".rp-speed").value, 10) || 400;
+    rp.timer = setInterval(() => { rp.pos += 1; replayRender(state); }, speed);
+    state.el.querySelector(".rp-play").textContent = "⏸";
+  }
+  function replayStart(state) {
+    if (!state.candles.length) return;
+    teardownFeed(state); // no live updates while replaying
+    state.replay = { pos: Math.floor(state.candles.length / 2), timer: null };
+    state.el.querySelector(".pane-replay").classList.add("active");
+    state.el.querySelector(".pane-replay-bar").classList.remove("hidden");
+    setConnState(state, "replay");
+    replayRender(state);
+  }
+  function replayExit(state) {
+    if (!state.replay) return;
+    replayPause(state);
+    state.replay = null;
+    state.el.querySelector(".pane-replay").classList.remove("active");
+    state.el.querySelector(".pane-replay-bar").classList.add("hidden");
+    loadAndSubscribe(state);
+  }
+  function wireReplay(state) {
+    const el = state.el;
+    el.querySelector(".pane-replay").addEventListener("click", () => state.replay ? replayExit(state) : replayStart(state));
+    el.querySelector(".rp-exit").addEventListener("click", () => replayExit(state));
+    el.querySelector(".rp-play").addEventListener("click", () => state.replay && (state.replay.timer ? replayPause(state) : replayPlay(state)));
+    el.querySelector(".rp-fwd").addEventListener("click", () => { if (state.replay) { state.replay.pos += 1; replayRender(state); } });
+    el.querySelector(".rp-back").addEventListener("click", () => { if (state.replay) { state.replay.pos -= 1; replayRender(state); } });
+    el.querySelector(".rp-start").addEventListener("click", () => { if (state.replay) { state.replay.pos = 10; replayRender(state); } });
+    el.querySelector(".rp-pos").addEventListener("input", (e) => { if (state.replay) { state.replay.pos = parseInt(e.target.value, 10); replayRender(state); } });
+    el.querySelector(".rp-speed").addEventListener("change", () => { if (state.replay && state.replay.timer) { replayPause(state); replayPlay(state); } });
+  }
+
+  // ---------------------------------------------------------------------
+  // Saved layouts (named snapshots of the whole grid)
+  // ---------------------------------------------------------------------
+
+  const layoutsBtn = document.getElementById("layouts-btn");
+  const layoutsMenu = document.getElementById("layouts-menu");
+  async function buildLayoutsMenu() {
+    let list = [];
+    try { list = (await (await fetch("/api/layouts")).json()).layouts || []; } catch (_) {}
+    layoutsMenu.innerHTML = "";
+    if (!list.length) { const d = document.createElement("div"); d.className = "row meta"; d.textContent = "No saved layouts yet."; layoutsMenu.appendChild(d); }
+    list.forEach((l) => {
+      const row = document.createElement("div"); row.className = "row";
+      row.innerHTML = `<span>${l.name} <span class="meta">${l.numCharts || ""} · ${(l.symbols || []).join(", ")}</span></span><span class="rm" title="Delete">×</span>`;
+      row.querySelector(".rm").addEventListener("click", async (e) => {
+        e.stopPropagation();
+        if (!confirm(`Delete layout "${l.name}"?`)) return;
+        const r = await fetch(`/api/layouts/${encodeURIComponent(l.name)}`, { method: "DELETE" });
+        if (r.status === 403) { flashSaveIndicator("read-only (public link)"); return; }
+        buildLayoutsMenu();
+      });
+      row.addEventListener("click", async () => {
+        const d = await (await fetch(`/api/layouts/${encodeURIComponent(l.name)}`)).json();
+        if (!d || !Array.isArray(d.panes)) return;
+        numCharts = d.numCharts || 4;
+        paneConfigs = d.panes.slice(0, MAX_PANES);
+        while (paneConfigs.length < MAX_PANES) paneConfigs.push(defaultPaneConfig(paneConfigs.length));
+        countSelect.value = String(numCharts);
+        layoutsMenu.classList.add("hidden");
+        scheduleSave();
+        rebuildGrid();
+      });
+      layoutsMenu.appendChild(row);
+    });
+    const save = document.createElement("div"); save.className = "save-row";
+    save.innerHTML = `<input type="text" placeholder="Save current as…" maxlength="40"><button type="button">Save</button>`;
+    const doSaveNamed = async () => {
+      const name = save.querySelector("input").value.trim(); if (!name) return;
+      const r = await fetch(`/api/layouts/${encodeURIComponent(name)}`, { method: "POST", headers: { "Content-Type": "application/json" }, body: JSON.stringify({ numCharts, panes: paneConfigs.slice(0, MAX_PANES) }) });
+      if (r.status === 403) { flashSaveIndicator("read-only (public link)"); return; }
+      if (!r.ok) { flashSaveIndicator((await r.json().catch(() => ({}))).detail || "could not save"); return; }
+      flashSaveIndicator(`saved "${name}"`);
+      buildLayoutsMenu();
+    };
+    save.querySelector("button").addEventListener("click", doSaveNamed);
+    save.querySelector("input").addEventListener("keydown", (e) => { if (e.key === "Enter") doSaveNamed(); });
+    save.addEventListener("mousedown", (e) => e.stopPropagation());
+    layoutsMenu.appendChild(save);
+  }
+  layoutsBtn.addEventListener("click", () => {
+    const open = layoutsMenu.classList.contains("hidden");
+    document.querySelectorAll(".menu").forEach((m) => m.classList.add("hidden"));
+    if (open) { buildLayoutsMenu(); layoutsMenu.classList.remove("hidden"); }
+  });
+
+  // ---------------------------------------------------------------------
   // Drawings (persisted per pane slot via chart.getOverlays/createOverlay)
   // ---------------------------------------------------------------------
 
@@ -548,6 +716,7 @@
       if (state.chart) {
         restoreDrawings(state);
         syncIndicators(state);
+        if (state.config.compare) setCompare(state, state.config.compare);
       }
       const last = state.candles[state.candles.length - 1];
       flashTicker(state, last ? last.close : null, null);
@@ -764,6 +933,13 @@
       scheduleSave();
     });
     el.querySelector(".pane-snap").addEventListener("click", () => snapshot(state));
+    el.querySelector(".pane-cmp").addEventListener("click", () => {
+      if (config.compare) { setCompare(state, null); return; }
+      const v = prompt("Compare with which symbol? (e.g. MAERSK-B.CO, ^OMXC25, SPY)", "");
+      if (v && v.trim()) setCompare(state, v.trim().toUpperCase());
+    });
+    wireReplay(state);
+    if (config.compare) { const b = el.querySelector(".pane-cmp"); b.classList.add("active"); b.textContent = `vs ${config.compare}`; }
     el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));
     el.querySelector(".pane-draw-tool").addEventListener("change", (e) => {
       const tool = e.target.value;

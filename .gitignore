@@ -12,3 +12,4 @@ data/fundamentals.tmp
 data/watchlist.json
 data/alerts.json
 data/*.tmp
+data/layouts/

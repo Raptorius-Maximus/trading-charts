@@ -316,3 +316,24 @@ table.wl td.rm:hover { color: var(--red); }
 @media (max-width: 900px) { .sidebar { flex-basis: 100%; max-width: none; border-left: none; } .workspace { flex-wrap: wrap; } }
 
 .save-indicator.sticky { opacity: 1 !important; color: var(--amber); }
+
+.menu-list { display: block; min-width: 16em; }
+.menu-list .row { display: flex; justify-content: space-between; align-items: center; gap: 8px; padding: 4px 6px; border-radius: 4px; cursor: pointer; color: var(--text); }
+.menu-list .row:hover { background: var(--bg); }
+.menu-list .row .meta { color: var(--text-dim); font-size: 0.68rem; }
+.menu-list .row .rm { color: var(--text-dim); } .menu-list .row .rm:hover { color: var(--red); }
+.menu-list .save-row { display: flex; gap: 4px; margin-top: 6px; padding-top: 6px; border-top: 1px solid var(--panel-border); }
+.menu-list .save-row input { flex: 1; background: var(--bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 4px; padding: 3px 6px; font-size: 0.75rem; }
+.menu-list .save-row button { background: var(--bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 4px; padding: 3px 8px; cursor: pointer; font-size: 0.75rem; }
+.pane-cmp, .pane-replay { background: var(--bg); color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; }
+.pane-cmp:hover, .pane-replay:hover { color: var(--text); border-color: var(--accent); }
+.pane-cmp.active, .pane-replay.active { color: var(--accent); border-color: var(--accent); }
+.pane-replay-bar { display: flex; align-items: center; gap: 6px; padding: 4px 8px; border-bottom: 1px solid var(--panel-border); background: rgba(210,153,34,.07); font-size: 0.75rem; }
+.pane-replay-bar button { background: var(--bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 4px; padding: 2px 7px; cursor: pointer; font-size: 0.75rem; }
+.pane-replay-bar button:hover { border-color: var(--accent); }
+.pane-replay-bar input[type=range] { flex: 1 1 auto; min-width: 60px; }
+.pane-replay-bar select { background: var(--bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 4px; font-size: 0.72rem; }
+.conn-badge.state-replay { color: var(--amber); border-color: var(--amber); }
+.pane-ticker { flex-wrap: nowrap; overflow: hidden; }
+.ticker-symbol { white-space: nowrap; }
+.ticker-info { overflow: hidden; text-overflow: ellipsis; min-width: 0; }

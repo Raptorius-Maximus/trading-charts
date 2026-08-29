@@ -372,3 +372,5 @@ table.wl td.rm:hover { color: var(--red); }
 .an-ai-btn:disabled { opacity: .45; cursor: default; }
 .an-ai-text { margin-top: 10px; }
 .an-ai-text p { margin: 6px 0; }
+.swatch { display: inline-block; width: 14px; height: 14px; border-radius: 3px; border: 1px solid; vertical-align: -2px; margin-right: 8px; }
+.menu-list input[type=color] { width: 40px; height: 24px; border: 1px solid var(--panel-border); background: var(--bg); border-radius: 4px; padding: 0; cursor: pointer; }

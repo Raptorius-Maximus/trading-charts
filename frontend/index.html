@@ -20,6 +20,10 @@
     </select>
     <span id="save-indicator" class="save-indicator" aria-live="polite"></span>
     <div class="menu-wrap">
+      <button type="button" id="theme-btn" class="menu-btn" title="Colours">Theme ▾</button>
+      <div id="theme-menu" class="menu menu-list hidden"></div>
+    </div>
+    <div class="menu-wrap">
       <button type="button" id="layouts-btn" class="menu-btn" title="Saved layouts">Layouts ▾</button>
       <div id="layouts-menu" class="menu menu-list hidden"></div>
     </div>
@@ -149,9 +153,10 @@
   </section>
 </template>
 
+<script src="/static/js/theme.js?v=1"></script>
 <script src="/static/vendor/klinecharts.min.js"></script>
 <script src="/static/js/overlays.js"></script>
-<script src="/static/js/app.js?v=17"></script>
+<script src="/static/js/app.js?v=18"></script>
 <script src="/static/js/sidebar.js?v=2"></script>
 <script src="/static/js/analysis.js?v=2"></script>
 </body>

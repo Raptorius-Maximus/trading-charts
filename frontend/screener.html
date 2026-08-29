@@ -50,7 +50,9 @@
 <body>
 <header class="topbar">
   <div class="brand">Charts <a class="nav" href="/">Charts</a><a class="nav here" href="/screener">Screener</a></div>
-  <div class="controls"><span id="status" class="scr-status">loading…</span></div>
+  <div class="controls"><span id="status" class="scr-status">loading…</span>
+    <div class="menu-wrap"><button type="button" id="theme-btn" class="menu-btn" title="Colours">Theme ▾</button><div id="theme-menu" class="menu menu-list hidden"></div></div>
+  </div>
 </header>
 
 <div class="scr-wrap">
@@ -98,6 +100,7 @@
   </div>
 </div>
 
+<script src="/static/js/theme.js?v=1"></script>
 <script src="/static/js/screener.js?v=2"></script>
 <script src="/static/js/analysis.js?v=2"></script>
 </body>

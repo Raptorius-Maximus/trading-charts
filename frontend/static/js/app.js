@@ -27,10 +27,13 @@
   const paneStates = {};
   let saveTimer = null;
 
-  const DARK_STYLES = {
+  // Chart colours follow the page theme (theme.js); rebuilt on every change.
+  function chartStyles() {
+    const t = window.currentTheme || { grid: "#20252f", border: "#262d38", dim: "#7d8590", text: "#d8dee9", panel: "#161b22" };
+    return {
     grid: {
-      horizontal: { color: "#20252f" },
-      vertical: { color: "#20252f" },
+      horizontal: { color: t.grid },
+      vertical: { color: t.grid },
     },
     candle: {
       bar: {
@@ -58,21 +61,22 @@
       lastValueMark: { show: false },
     },
     xAxis: {
-      axisLine: { color: "#262d38" },
-      tickLine: { color: "#262d38" },
-      tickText: { color: "#7d8590" },
+      axisLine: { color: t.border },
+      tickLine: { color: t.border },
+      tickText: { color: t.dim },
     },
     yAxis: {
-      axisLine: { color: "#262d38" },
-      tickLine: { color: "#262d38" },
-      tickText: { color: "#7d8590" },
+      axisLine: { color: t.border },
+      tickLine: { color: t.border },
+      tickText: { color: t.dim },
     },
-    separator: { color: "#262d38" },
+    separator: { color: t.border },
     crosshair: {
-      horizontal: { line: { color: "#5b6472" }, text: { backgroundColor: "#262d38", color: "#d8dee9" } },
-      vertical: { line: { color: "#5b6472" }, text: { backgroundColor: "#262d38", color: "#d8dee9" } },
+      horizontal: { line: { color: t.dim }, text: { backgroundColor: t.border, color: t.text } },
+      vertical: { line: { color: t.dim }, text: { backgroundColor: t.border, color: t.text } },
     },
-  };
+    };
+  }
 
   function defaultPaneConfig(i) {
     // yfinance is the primary/default source -- it covers world exchanges
@@ -892,7 +896,7 @@
     el.querySelector(".pane-chart-type").value = config.chartType || "candle_solid";
 
     const chartEl = el.querySelector(".pane-chart");
-    const chart = window.klinecharts.init(chartEl, { styles: DARK_STYLES });
+    const chart = window.klinecharts.init(chartEl, { styles: chartStyles() });
     state.chart = chart;
     installDataLoader(state);
     chart.createIndicator("VOL", false);
@@ -1034,6 +1038,13 @@
 
   // Small public surface for the sidebar (watchlist click -> chart).
   window.chartsApp = {
+    restyle() {
+      Object.values(paneStates).forEach((st) => {
+        if (!st.chart) return;
+        st.chart.setStyles(chartStyles());
+        applyChartType(st);
+      });
+    },
     setSymbol(index, symbol) {
       const state = paneStates[index] || paneStates[Object.keys(paneStates)[0]];
       if (!state) return;

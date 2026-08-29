@@ -72,6 +72,15 @@ symbol-keyed drawing store is a natural follow-up if wanted.
 
 ## Data sources
 
+**yfinance is the primary source and the default for new panes** — this
+dashboard is built for global stocks (anything buyable from Denmark or
+Sweden), not crypto. Yahoo suffix symbols cover world exchanges without
+needing a broker per country: `.CO` Copenhagen, `.ST` Stockholm, `.OL`
+Oslo, `.DE` Xetra, `.L` London, no suffix = US. Hyperliquid's live crypto
+websocket is still fully wired up and labeled **live** — it's kept as a
+secondary source, picked per-pane from the same source dropdown — but it
+is no longer what a fresh install shows by default.
+
 Two built-in sources, both pluggable through a single file,
 `backend/data_sources.py`. Adding a new venue means writing one class
 with one method, `get_candles(symbol, interval, limit) -> list[Candle]`,
@@ -80,12 +89,39 @@ else in the app changes.
 
 | Source | `backend/data_sources.py` class | Quality label | Historical candles | Live updates |
 |---|---|---|---|---|
-| Hyperliquid | `HyperliquidSource` | **live** | REST `candleSnapshot` (official candle endpoint — not aggregated from raw trades) | proxied websocket, see below |
 | yfinance | `YFinanceSource` | **delayed ~15 min** | `yfinance` `Ticker.history()` | 60s polling (delayed anyway, so a websocket would be theatre) |
+| Hyperliquid | `HyperliquidSource` | **live** | REST `candleSnapshot` (official candle endpoint — not aggregated from raw trades) | proxied websocket, see below |
 
 Every pane's quality badge shows exactly one of these two labels, sourced
 from the backend response — the frontend never guesses or upgrades a
 label.
+
+### Symbol search — type a company name, not a ticker
+
+Nobody should have to already know that Novo Nordisk's B-shares trade as
+`NOVO-B.CO`. `GET /api/symbol-search?q=...` (`YFinanceSource.search()` in
+`backend/data_sources.py`) proxies Yahoo's public search endpoint and
+returns `{symbol, name, exchange}` matches. The pane's symbol field
+(`frontend/static/js/app.js`) is a type-ahead: typing 2+ characters (with
+the source set to Yahoo Finance) debounces a search and shows a dropdown
+of name + ticker + exchange; picking one commits that ticker to the pane.
+Hyperliquid coins are a short fixed list (BTC, ETH, ...) typed directly —
+search only applies to the yfinance path.
+
+### On data freshness — why nothing here is real-time for stocks
+
+Free stock/FX/index data is delayed everywhere, not just from this
+dashboard — genuinely real-time quotes are a **per-exchange paid
+license** (SIP/CTA feeds in the US, and separate paid feeds per European
+exchange for Nordic tickers), and yfinance's free Yahoo-sourced data
+reflects that: roughly a 15-minute delay, honestly labeled as such on
+every pane. Hyperliquid crypto is the one source here that's genuinely
+real-time, because Hyperliquid publishes its own order book/trade data
+directly with no licensing intermediary. A future paid plug-in like
+Alpaca would upgrade **US-listed** symbols to real-time (their data
+agreements are with US exchanges); it wouldn't touch the Nordic-listed
+tickers this dashboard defaults to — those would still need a
+Nasdaq-Nordic-licensed feed to go real-time.
 
 yfinance has no native "4h" bar. For that one timeframe the backend pulls
 60m bars and resamples to 4h with pandas (`backend/data_sources.py`,
@@ -170,7 +206,8 @@ requirements.txt                pinned Python deps for the venv
 package.json                    records the klinecharts version vendored in
 backend/
   main.py                       FastAPI app: static serving, /health, /api/candles,
-                                 /api/layout, /ws/candles, /debug/drop-stream
+                                 /api/symbol-search, /api/layout, /ws/candles,
+                                 /debug/drop-stream
   data_sources.py                pluggable DataSource interface + Hyperliquid/yfinance
   hyperliquid_stream.py          upstream Hyperliquid ws manager: reconnect+backoff, fan-out
   layout_store.py                server-side layout.json read/write

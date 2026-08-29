@@ -23,10 +23,10 @@ _lock = threading.Lock()
 DEFAULT_LAYOUT: dict[str, Any] = {
     "numCharts": 4,
     "panes": [
-        {"symbol": "BTC", "source": "hyperliquid", "interval": "1m", "ema20": True, "ema50": False, "rsi": False, "drawings": []},
-        {"symbol": "ETH", "source": "hyperliquid", "interval": "5m", "ema20": True, "ema50": False, "rsi": False, "drawings": []},
-        {"symbol": "AAPL", "source": "yfinance", "interval": "1h", "ema20": False, "ema50": False, "rsi": False, "drawings": []},
-        {"symbol": "SPY", "source": "yfinance", "interval": "1D", "ema20": False, "ema50": False, "rsi": False, "drawings": []},
+        {"symbol": "NOVO-B.CO", "source": "yfinance", "interval": "1h", "ema20": True, "ema50": False, "rsi": False, "drawings": []},
+        {"symbol": "MAERSK-B.CO", "source": "yfinance", "interval": "1h", "ema20": False, "ema50": False, "rsi": False, "drawings": []},
+        {"symbol": "ERIC-B.ST", "source": "yfinance", "interval": "1h", "ema20": False, "ema50": False, "rsi": False, "drawings": []},
+        {"symbol": "AAPL", "source": "yfinance", "interval": "1D", "ema20": False, "ema50": False, "rsi": False, "drawings": []},
     ],
 }
 

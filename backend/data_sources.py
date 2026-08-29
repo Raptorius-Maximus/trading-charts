@@ -27,6 +27,7 @@ import yfinance as yf
 
 HYPERLIQUID_INFO_URL = "https://api.hyperliquid.xyz/info"
 HYPERLIQUID_WS_URL = "wss://api.hyperliquid.xyz/ws"
+YAHOO_SEARCH_URL = "https://query2.finance.yahoo.com/v1/finance/search"
 
 # Frontend timeframe labels -> per-source interval strings.
 # ("1D" uses a capital D in the UI to read cleanly next to "1h"/"4h"; every
@@ -152,6 +153,41 @@ class YFinanceSource(DataSource):
             for idx, row in df.iterrows()
         ]
         return candles[-limit:]
+
+    def search(self, query: str, limit: int = 8) -> list[dict[str, Any]]:
+        """Look up ticker symbols by company/fund name via Yahoo's public
+        search endpoint, so a pane can be driven by typing "Novo Nordisk"
+        instead of requiring the caller to already know it's NOVO-B.CO on
+        the Copenhagen exchange."""
+        query = query.strip()
+        if not query:
+            return []
+        try:
+            resp = httpx.get(
+                YAHOO_SEARCH_URL,
+                params={"q": query, "quotesCount": limit, "newsCount": 0},
+                headers={"User-Agent": "Mozilla/5.0 (compatible; charts-dashboard/1.0)"},
+                timeout=8,
+            )
+        except httpx.HTTPError as exc:
+            raise DataSourceError(f"symbol search unreachable: {exc}") from exc
+        if resp.status_code != 200:
+            raise DataSourceError(f"symbol search error {resp.status_code}: {resp.text[:200]}")
+        try:
+            data = resp.json()
+        except ValueError as exc:
+            raise DataSourceError(f"symbol search returned invalid JSON: {exc}") from exc
+        results = []
+        for q in data.get("quotes", [])[:limit]:
+            symbol = q.get("symbol")
+            if not symbol:
+                continue
+            results.append({
+                "symbol": symbol,
+                "name": q.get("shortname") or q.get("longname") or symbol,
+                "exchange": q.get("exchange") or q.get("exchDisp") or "",
+            })
+        return results
 
 
 def _interval_to_ms(interval: str) -> int:

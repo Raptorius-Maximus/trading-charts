@@ -99,6 +99,20 @@ async def api_candles(
     })
 
 
+@app.get("/api/symbol-search")
+async def symbol_search(q: str = Query(..., min_length=1)) -> JSONResponse:
+    """Company/fund name -> ticker lookup (Yahoo search), so a pane can be
+    driven by typing e.g. "Novo Nordisk" without knowing it's NOVO-B.CO on
+    the Copenhagen exchange. yfinance-backed only; Hyperliquid coins are a
+    short fixed list typed directly (BTC, ETH, ...)."""
+    src = SOURCES.get("yfinance")
+    try:
+        results = await asyncio.to_thread(src.search, q, 8)
+    except DataSourceError as exc:
+        raise HTTPException(status_code=502, detail=str(exc)) from exc
+    return JSONResponse({"query": q, "results": results})
+
+
 @app.get("/api/layout")
 async def get_layout() -> JSONResponse:
     return JSONResponse(layout_store.load_layout())

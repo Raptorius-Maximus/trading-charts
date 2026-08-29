@@ -75,11 +75,16 @@
   };
 
   function defaultPaneConfig(i) {
+    // yfinance is the primary/default source -- it covers world exchanges
+    // via Yahoo suffix symbols (.CO Copenhagen, .ST Stockholm, .OL Oslo,
+    // .DE Xetra, .L London, no suffix = US). Hyperliquid crypto stays
+    // available as a secondary source via the per-pane source picker, but
+    // isn't part of the default view.
     const presets = [
-      { symbol: "BTC", source: "hyperliquid", interval: "1m" },
-      { symbol: "ETH", source: "hyperliquid", interval: "5m" },
-      { symbol: "AAPL", source: "yfinance", interval: "1h" },
-      { symbol: "SPY", source: "yfinance", interval: "1D" },
+      { symbol: "NOVO-B.CO", source: "yfinance", interval: "1h" },
+      { symbol: "MAERSK-B.CO", source: "yfinance", interval: "1h" },
+      { symbol: "ERIC-B.ST", source: "yfinance", interval: "1h" },
+      { symbol: "AAPL", source: "yfinance", interval: "1D" },
     ];
     const base = presets[i % presets.length];
     return { ...base, ema20: false, ema50: false, rsi: false, drawings: [] };
@@ -106,6 +111,21 @@
   // ---------------------------------------------------------------------
   // Persistence
   // ---------------------------------------------------------------------
+
+  function debounce(fn, ms) {
+    let t = null;
+    return (...args) => {
+      clearTimeout(t);
+      t = setTimeout(() => fn(...args), ms);
+    };
+  }
+
+  async function searchSymbols(query) {
+    const res = await fetch(`/api/symbol-search?q=${encodeURIComponent(query)}`);
+    if (!res.ok) throw new Error(`status ${res.status}`);
+    const body = await res.json();
+    return body.results || [];
+  }
 
   async function fetchLayout() {
     try {
@@ -423,18 +443,75 @@
     chart.createIndicator("VOL", false);
 
     // --- wiring ---
+    const symbolInput = el.querySelector(".pane-symbol");
+    const resultsEl = el.querySelector(".pane-symbol-results");
+
+    function commitSymbol(v) {
+      v = v.trim().toUpperCase();
+      if (!v) return;
+      config.symbol = v;
+      symbolInput.value = v;
+      hideResults();
+      scheduleSave();
+      loadAndSubscribe(state);
+    }
+
+    function hideResults() {
+      resultsEl.classList.add("hidden");
+      resultsEl.innerHTML = "";
+    }
+
+    function renderResults(results) {
+      resultsEl.innerHTML = "";
+      if (!results.length) { hideResults(); return; }
+      results.forEach((r) => {
+        const item = document.createElement("div");
+        item.className = "symbol-result";
+        const name = document.createElement("span");
+        name.className = "name";
+        name.textContent = r.name;
+        const meta = document.createElement("span");
+        meta.className = "meta";
+        meta.textContent = `${r.symbol}${r.exchange ? " · " + r.exchange : ""}`;
+        item.appendChild(name);
+        item.appendChild(meta);
+        item.addEventListener("mousedown", (e) => {
+          // mousedown (not click) fires before the input's blur handler
+          e.preventDefault();
+          commitSymbol(r.symbol);
+        });
+        resultsEl.appendChild(item);
+      });
+      resultsEl.classList.remove("hidden");
+    }
+
+    const debouncedSearch = debounce(async (query) => {
+      if (config.source !== "yfinance" || query.trim().length < 2) { hideResults(); return; }
+      try {
+        const results = await searchSymbols(query.trim());
+        renderResults(results);
+      } catch (_) {
+        hideResults();
+      }
+    }, 300);
+
     el.querySelector(".pane-source").addEventListener("change", (e) => {
       config.source = e.target.value;
+      hideResults();
       scheduleSave();
       loadAndSubscribe(state);
     });
-    el.querySelector(".pane-symbol").addEventListener("change", (e) => {
-      const v = e.target.value.trim().toUpperCase();
-      if (!v) return;
-      config.symbol = v;
-      e.target.value = v;
-      scheduleSave();
-      loadAndSubscribe(state);
+    symbolInput.addEventListener("input", (e) => debouncedSearch(e.target.value));
+    symbolInput.addEventListener("change", (e) => {
+      // Only commit on change (Enter/blur) for free-typed symbols, e.g.
+      // Hyperliquid coin tickers, or a yfinance symbol typed directly
+      // without picking a search result.
+      if (!resultsEl.classList.contains("hidden")) return; // a click on a result is mid-flight
+      commitSymbol(e.target.value);
+    });
+    symbolInput.addEventListener("blur", () => setTimeout(hideResults, 150));
+    symbolInput.addEventListener("keydown", (e) => {
+      if (e.key === "Escape") hideResults();
     });
     el.querySelector(".pane-interval").addEventListener("change", (e) => {
       config.interval = e.target.value;

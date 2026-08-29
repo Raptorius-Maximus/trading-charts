@@ -28,10 +28,13 @@
   <section class="pane" data-pane-id="">
     <div class="pane-header">
       <select class="pane-source">
-        <option value="hyperliquid">Hyperliquid</option>
         <option value="yfinance">Yahoo Finance</option>
+        <option value="hyperliquid">Hyperliquid</option>
       </select>
-      <input class="pane-symbol" type="text" spellcheck="false" autocomplete="off" placeholder="Symbol (e.g. BTC)">
+      <div class="pane-symbol-wrap">
+        <input class="pane-symbol" type="text" spellcheck="false" autocomplete="off" placeholder="Company name or symbol">
+        <div class="pane-symbol-results hidden"></div>
+      </div>
       <select class="pane-interval">
         <option value="1m">1m</option>
         <option value="5m">5m</option>

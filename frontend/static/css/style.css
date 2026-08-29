@@ -115,10 +115,43 @@ html, body {
   font-size: 0.8rem;
 }
 
-.pane-symbol {
-  width: 6.5em;
-  text-transform: uppercase;
+.pane-symbol-wrap {
+  position: relative;
 }
+
+.pane-symbol {
+  width: 9em;
+}
+
+.pane-symbol-results {
+  position: absolute;
+  top: 100%;
+  left: 0;
+  z-index: 30;
+  min-width: 16em;
+  max-height: 14em;
+  overflow-y: auto;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: 6px;
+  box-shadow: 0 6px 16px rgba(0, 0, 0, 0.4);
+  margin-top: 2px;
+}
+
+.symbol-result {
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  cursor: pointer;
+  border-bottom: 1px solid var(--panel-border);
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  white-space: nowrap;
+}
+.symbol-result:last-child { border-bottom: none; }
+.symbol-result:hover, .symbol-result.active { background: var(--bg); }
+.symbol-result .name { color: var(--text); overflow: hidden; text-overflow: ellipsis; }
+.symbol-result .meta { color: var(--text-dim); flex-shrink: 0; }
 
 .pane-draw-tool {
   max-width: 8.5em;

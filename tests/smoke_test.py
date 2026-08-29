@@ -24,6 +24,9 @@ REQUIRED_KEYS = {"time", "open", "high", "low", "close", "volume"}
 
 CASES = [
     {"source": "hyperliquid", "symbol": "BTC", "interval": "1m", "expect_quality": "live"},
+    # Copenhagen-listed (Yahoo suffix path) and a plain US symbol, since
+    # yfinance is the primary source here and needs to prove both work.
+    {"source": "yfinance", "symbol": "NOVO-B.CO", "interval": "1h", "expect_quality": "delayed"},
     {"source": "yfinance", "symbol": "AAPL", "interval": "1h", "expect_quality": "delayed"},
 ]
 

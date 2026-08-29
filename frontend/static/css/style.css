@@ -343,3 +343,27 @@ table.wl td.rm:hover { color: var(--red); }
 .pane-ranges button:hover { color: var(--text); border-color: var(--panel-border); }
 .pane-ranges button.active { color: var(--accent); border-color: var(--accent); }
 .pane-range-info { margin-left: auto; font-size: 0.68rem; }
+
+/* ---- analysis panel ---- */
+.an-overlay { position: fixed; inset: 0; background: rgba(0,0,0,.6); z-index: 200; display: flex; align-items: flex-start; justify-content: center; padding: 30px 12px; overflow-y: auto; }
+.an-panel { background: var(--panel); border: 1px solid var(--panel-border); border-radius: 10px; max-width: 900px; width: 100%; box-shadow: 0 10px 40px rgba(0,0,0,.6); }
+.an-head { display: flex; justify-content: space-between; align-items: center; padding: 12px 16px; border-bottom: 1px solid var(--panel-border); position: sticky; top: 0; background: var(--panel); border-radius: 10px 10px 0 0; }
+.an-title { font-size: 1rem; }
+.an-head button { background: var(--bg); color: var(--text); border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 9px; cursor: pointer; margin-left: 6px; font-size: 0.9rem; }
+.an-head button:hover { border-color: var(--accent); }
+.an-body { padding: 12px 16px 16px; font-size: 0.86rem; line-height: 1.45; }
+.an-verdict { border-left: 3px solid var(--accent); padding: 8px 12px; margin-bottom: 12px; background: rgba(79,143,247,.08); font-size: 0.92rem; }
+.an-facts { display: flex; flex-wrap: wrap; gap: 6px 16px; color: var(--text-dim); margin-bottom: 8px; font-size: 0.78rem; }
+.an-facts b { color: var(--text); }
+.an-body h4 { margin: 14px 0 6px; font-size: 0.85rem; color: var(--text); }
+.an-list { list-style: none; margin: 0; padding: 0; }
+.an-list li { padding: 3px 0 3px 22px; position: relative; }
+.an-list li .ic { position: absolute; left: 4px; font-weight: 700; }
+.k-good .ic { color: var(--green); } .k-warn .ic { color: var(--amber); } .k-bad .ic { color: var(--red); } .k-info .ic { color: var(--text-dim); }
+.an-hist { border-collapse: collapse; font-size: 0.78rem; margin-top: 4px; white-space: nowrap; }
+.an-hist th, .an-hist td { padding: 3px 10px 3px 0; text-align: right; border-bottom: 1px solid var(--panel-border); }
+.an-hist td:first-child, .an-hist th:first-child { text-align: left; color: var(--text-dim); }
+.pane-analyse { background: var(--bg); color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 6px; padding: 3px 8px; font-size: 0.72rem; cursor: pointer; }
+.pane-analyse:hover { color: var(--text); border-color: var(--accent); }
+.scr .an-btn { background: var(--bg); color: var(--text-dim); border: 1px solid var(--panel-border); border-radius: 4px; padding: 1px 6px; font-size: 0.7rem; cursor: pointer; }
+.scr .an-btn:hover { color: var(--text); border-color: var(--accent); }

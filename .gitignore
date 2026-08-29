@@ -13,3 +13,4 @@ data/watchlist.json
 data/alerts.json
 data/*.tmp
 data/layouts/
+data/analysis/

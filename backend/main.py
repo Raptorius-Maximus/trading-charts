@@ -34,7 +34,7 @@ from fastapi import FastAPI, HTTPException, Query, WebSocket, WebSocketDisconnec
 from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
-from . import fundamentals, layout_store, quotes
+from . import analysis, fundamentals, layout_store, quotes
 from .data_sources import SOURCES, DataSourceError
 from .hyperliquid_stream import manager as hl_manager
 
@@ -217,6 +217,18 @@ async def api_layouts_delete(name: str) -> JSONResponse:
     if not layout_store.delete_named_layout(name):
         raise HTTPException(status_code=404, detail="no such layout")
     return JSONResponse({"ok": True})
+
+
+@app.get("/api/analysis/{symbol}")
+async def api_analysis(symbol: str, force: bool = Query(False)) -> JSONResponse:
+    """Graham / Buffett / Munger reading of one stock (deterministic, cached 12 h)."""
+    try:
+        d = await asyncio.to_thread(analysis.get, symbol, force)
+    except ValueError as exc:
+        raise HTTPException(status_code=404, detail=str(exc)) from exc
+    except Exception as exc:  # yfinance grab-bag
+        raise HTTPException(status_code=502, detail=f"analysis failed: {exc}"[:200]) from exc
+    return JSONResponse(d)
 
 
 @app.get("/api/layout")

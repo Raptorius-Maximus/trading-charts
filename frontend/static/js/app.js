@@ -1001,6 +1001,7 @@
     });
     wireReplay(state);
     wireRanges(state);
+    el.querySelector(".pane-analyse").addEventListener("click", () => window.stockAnalysis && window.stockAnalysis.open(config.symbol));
     if (config.compare) { const b = el.querySelector(".pane-cmp"); b.classList.add("active"); b.textContent = `vs ${config.compare}`; }
     el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));
     el.querySelector(".pane-draw-tool").addEventListener("change", (e) => {

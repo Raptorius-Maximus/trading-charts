@@ -5,6 +5,7 @@
   const COLS = [
     { key: "symbol", label: "Symbol", left: true, fmt: (v, r) => `<a href="/?symbol=${encodeURIComponent(v)}" title="Open in chart">${v}</a>` },
     { key: "name", label: "Name", left: true, fmt: (v) => esc(v || "") },
+    { key: "_an", label: "", left: true, fmt: (v, r) => `<button type="button" class="an-btn" data-analyse="${esc(r.symbol)}">Analyse</button>` },
     { key: "market", label: "Market", left: true, fmt: (v) => esc(v || "") },
     { key: "sector", label: "Sector", left: true, fmt: (v) => esc(v || "") },
     { key: "price", label: "Price", fmt: (v, r) => num(v, 2) + (r.currency ? ` <span class="na">${esc(r.currency)}</span>` : "") },

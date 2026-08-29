@@ -337,3 +337,9 @@ table.wl td.rm:hover { color: var(--red); }
 .pane-ticker { flex-wrap: nowrap; overflow: hidden; }
 .ticker-symbol { white-space: nowrap; }
 .ticker-info { overflow: hidden; text-overflow: ellipsis; min-width: 0; }
+
+.pane-ranges { display: flex; gap: 2px; align-items: center; padding: 2px 8px; border-bottom: 1px solid var(--panel-border); font-size: 0.7rem; flex-wrap: wrap; }
+.pane-ranges button { background: transparent; color: var(--text-dim); border: 1px solid transparent; border-radius: 4px; padding: 1px 6px; cursor: pointer; font-size: 0.7rem; }
+.pane-ranges button:hover { color: var(--text); border-color: var(--panel-border); }
+.pane-ranges button.active { color: var(--accent); border-color: var(--accent); }
+.pane-range-info { margin-left: auto; font-size: 0.68rem; }

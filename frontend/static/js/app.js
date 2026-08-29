@@ -609,6 +609,65 @@
   });
 
   // ---------------------------------------------------------------------
+  // Range buttons (1M ... 30Y, All): pick a sensible bar size for the span
+  // and fit that span to the pane width -- TradingView's bottom-bar ranges.
+  // ---------------------------------------------------------------------
+
+  const RANGES = {
+    "1M": { days: 31, interval: "1D" }, "3M": { days: 92, interval: "1D" }, "6M": { days: 183, interval: "1D" },
+    "YTD": { days: null, interval: "1D" }, "1Y": { days: 366, interval: "1D" }, "2Y": { days: 731, interval: "1D" },
+    "5Y": { days: 1827, interval: "1W" }, "10Y": { days: 3653, interval: "1W" }, "20Y": { days: 7305, interval: "1M" },
+    "30Y": { days: 10958, interval: "1M" }, "ALL": { days: Infinity, interval: "1M" },
+  };
+
+  function rangeStartSec(key) {
+    const r = RANGES[key];
+    if (key === "YTD") return Math.floor(new Date(new Date().getFullYear(), 0, 1).getTime() / 1000);
+    if (!isFinite(r.days)) return 0;
+    return Math.floor(Date.now() / 1000) - r.days * 86400;
+  }
+
+  function fitRange(state, key) {
+    const chart = state.chart; if (!chart || !state.candles.length) return;
+    const start = rangeStartSec(key);
+    const firstIdx = state.candles.findIndex((c) => c.time >= start);
+    const bars = firstIdx < 0 ? state.candles.length : state.candles.length - firstIdx;
+    const size = chart.getSize("candle_pane", "main");
+    const width = size ? size.width : state.el.clientWidth;
+    const space = Math.max(1, Math.min(50, Math.floor((width - 8) / Math.max(bars, 1))));
+    chart.setBarSpace(space);
+    chart.setOffsetRightDistance(6);
+    chart.scrollToRealTime(0);
+    const first = state.candles[Math.max(firstIdx, 0)];
+    const info = state.el.querySelector(".pane-range-info");
+    const from = first ? new Date(first.time * 1000) : null;
+    const dataStart = new Date(state.candles[0].time * 1000);
+    const wanted = isFinite(RANGES[key].days) && key !== "YTD" ? Math.round(RANGES[key].days / 365.25) : null;
+    const covered = from ? ((Date.now() / 1000 - from.getTime() / 1000) / (365.25 * 86400)) : 0;
+    info.textContent = (wanted && covered < wanted - 1 ? `Yahoo only has this stock since ${dataStart.getFullYear()} · ` : "") +
+      (from ? `${from.toISOString().slice(0, 10)} → today · ${bars} bars` : "");
+    state.el.querySelectorAll(".pane-ranges button").forEach((b) => b.classList.toggle("active", b.dataset.range === key));
+  }
+
+  function wireRanges(state) {
+    state.el.querySelectorAll(".pane-ranges button").forEach((btn) => {
+      btn.addEventListener("click", async () => {
+        const key = btn.dataset.range;
+        const want = RANGES[key].interval;
+        state.pendingRange = key;
+        if (state.config.interval !== want) {
+          state.config.interval = want;
+          state.el.querySelector(".pane-interval").value = want;
+          scheduleSave();
+          await loadAndSubscribe(state); // fitRange runs after the load
+        } else {
+          fitRange(state, key);
+        }
+      });
+    });
+  }
+
+  // ---------------------------------------------------------------------
   // Drawings (persisted per pane slot via chart.getOverlays/createOverlay)
   // ---------------------------------------------------------------------
 
@@ -717,6 +776,8 @@
         restoreDrawings(state);
         syncIndicators(state);
         if (state.config.compare) setCompare(state, state.config.compare);
+        if (state.pendingRange) { const k = state.pendingRange; state.pendingRange = null; setTimeout(() => fitRange(state, k), 50); }
+        else state.el.querySelectorAll(".pane-ranges button").forEach((b) => b.classList.remove("active"));
       }
       const last = state.candles[state.candles.length - 1];
       flashTicker(state, last ? last.close : null, null);
@@ -939,6 +1000,7 @@
       if (v && v.trim()) setCompare(state, v.trim().toUpperCase());
     });
     wireReplay(state);
+    wireRanges(state);
     if (config.compare) { const b = el.querySelector(".pane-cmp"); b.classList.add("active"); b.textContent = `vs ${config.compare}`; }
     el.querySelector(".pane-max").addEventListener("click", () => toggleMaximize(state));
     el.querySelector(".pane-draw-tool").addEventListener("change", (e) => {

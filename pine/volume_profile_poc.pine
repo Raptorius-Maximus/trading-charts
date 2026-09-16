@@ -1,0 +1,144 @@
+// @version=6
+// Volume Profile — Point of Control, Value Area (VAH / VAL), low-volume edges.
+//
+// Builds a horizontal volume-at-price histogram over the last N bars and
+// draws it to the right of the current bar. Each bar's volume is spread over
+// the price rows its high-low range covers, in proportion to the overlap.
+//   POC  = the row with the most volume (market "fair value" centre)
+//   VA   = rows around the POC holding X % of total volume (default 70 %)
+//   VAH / VAL = upper / lower boundary of the value area
+//   grey rows = outside the value area: low volume, little acceptance
+//
+// Install: TradingView -> Pine Editor -> paste -> Add to chart.
+// Pattern on past volume, not a forecast.
+indicator("Volume Profile — POC / Value Area", "VP POC", overlay = true, max_boxes_count = 500, max_lines_count = 50, max_labels_count = 20)
+
+// ---------- settings
+lookback  = input.int(200, "Bars in profile", minval = 20, maxval = 1000)
+rows      = input.int(40, "Price rows", minval = 10, maxval = 200)
+vaPct     = input.float(70, "Value area % of volume", minval = 50, maxval = 95, step = 1)
+profW     = input.int(60, "Profile width (bars to the right)", minval = 10, maxval = 200)
+showBars  = input.bool(true, "Show profile bars")
+showLines = input.bool(true, "POC / VAH / VAL lines")
+showTable = input.bool(true, "Show table")
+cVA       = input.color(color.new(#f5b800, 25), "Value area colour")
+cOut      = input.color(color.new(#8a8f98, 45), "Outside value area colour")
+cPOC      = input.color(#ffcc00, "POC colour")
+
+// ---------- rolling window of the last `lookback` bars
+var float[] bHi  = array.new_float()
+var float[] bLo  = array.new_float()
+var float[] bVol = array.new_float()
+array.push(bHi, high)
+array.push(bLo, low)
+array.push(bVol, nz(volume))
+while array.size(bHi) > lookback
+    array.shift(bHi)
+    array.shift(bLo)
+    array.shift(bVol)
+
+// ---------- drawings, rebuilt on the last bar only
+var box[]   boxes  = array.new_box()
+var line[]  lines  = array.new_line()
+var label[] labels = array.new_label()
+
+clearAll() =>
+    for b in boxes
+        box.delete(b)
+    array.clear(boxes)
+    for l in lines
+        line.delete(l)
+    array.clear(lines)
+    for lb in labels
+        label.delete(lb)
+    array.clear(labels)
+
+levelLine(float price, int x1, int x2, color col, string sty, string txt) =>
+    array.push(lines, line.new(x1, price, x2, price, color = col, style = sty, width = sty == line.style_solid ? 2 : 1))
+    array.push(labels, label.new(x2, price, txt + " " + str.tostring(price, format.mintick), style = label.style_label_left, color = color.new(col, 10), textcolor = color.black, size = size.small))
+
+if barstate.islast
+    clearAll()
+    int n = array.size(bHi)
+    float top = array.max(bHi)
+    float bot = array.min(bLo)
+    float step = (top - bot) / rows
+    if n > 1 and step > 0
+        // --- volume per row
+        float[] vol = array.new_float(rows, 0.0)
+        for i = 0 to n - 1
+            float h = array.get(bHi, i)
+            float l = array.get(bLo, i)
+            float v = array.get(bVol, i)
+            int r0 = math.max(0, math.min(rows - 1, math.floor((l - bot) / step)))
+            int r1 = math.max(0, math.min(rows - 1, math.floor((h - bot) / step)))
+            if r0 == r1
+                array.set(vol, r0, array.get(vol, r0) + v)
+            else
+                float span = h - l
+                for r = r0 to r1
+                    float rl = bot + r * step
+                    float rh = rl + step
+                    float ov = math.min(h, rh) - math.max(l, rl)
+                    if ov > 0
+                        array.set(vol, r, array.get(vol, r) + v * ov / span)
+
+        // --- point of control
+        int poc = 0
+        float total = 0.0
+        for r = 0 to rows - 1
+            total += array.get(vol, r)
+            if array.get(vol, r) > array.get(vol, poc)
+                poc := r
+        float maxV = array.get(vol, poc)
+
+        // --- value area: grow from the POC, always taking the heavier neighbour
+        int vaLo = poc
+        int vaHi = poc
+        float acc = maxV
+        float target = total * vaPct / 100
+        while acc < target and (vaLo > 0 or vaHi < rows - 1)
+            float up = vaHi < rows - 1 ? array.get(vol, vaHi + 1) : -1.0
+            float dn = vaLo > 0 ? array.get(vol, vaLo - 1) : -1.0
+            if up >= dn
+                vaHi += 1
+                acc += up
+            else
+                vaLo -= 1
+                acc += dn
+
+        float pocPrice = bot + (poc + 0.5) * step
+        float vah = bot + (vaHi + 1) * step
+        float val = bot + vaLo * step
+
+        // --- histogram to the right of the last bar
+        int left = bar_index + 2
+        if showBars and maxV > 0
+            for r = 0 to rows - 1
+                float v = array.get(vol, r)
+                int w = math.max(1, math.round(profW * v / maxV))
+                color col = r == poc ? cPOC : (r >= vaLo and r <= vaHi ? cVA : cOut)
+                array.push(boxes, box.new(left, bot + (r + 1) * step, left + w, bot + r * step, border_width = 0, bgcolor = col))
+
+        // --- levels across the profile window
+        if showLines
+            int x1 = bar_index - n + 1
+            int x2 = left + profW + 2
+            levelLine(pocPrice, x1, x2, cPOC, line.style_solid, "POC")
+            levelLine(vah, x1, x2, cVA, line.style_dashed, "VAH")
+            levelLine(val, x1, x2, cVA, line.style_dashed, "VAL")
+
+        // --- table
+        if showTable
+            var table tbl = table.new(position.top_right, 2, 5, bgcolor = color.new(color.black, 20), border_width = 1)
+            table.cell(tbl, 0, 0, "Volume profile", text_color = color.white, text_size = size.small)
+            table.cell(tbl, 1, 0, str.tostring(n) + " bars", text_color = color.gray, text_size = size.small)
+            table.cell(tbl, 0, 1, "POC", text_color = cPOC, text_size = size.small)
+            table.cell(tbl, 1, 1, str.tostring(pocPrice, format.mintick), text_color = cPOC, text_size = size.small)
+            table.cell(tbl, 0, 2, "VAH", text_color = color.white, text_size = size.small)
+            table.cell(tbl, 1, 2, str.tostring(vah, format.mintick), text_color = color.white, text_size = size.small)
+            table.cell(tbl, 0, 3, "VAL", text_color = color.white, text_size = size.small)
+            table.cell(tbl, 1, 3, str.tostring(val, format.mintick), text_color = color.white, text_size = size.small)
+            string side = close > vah ? "above value area" : close < val ? "below value area" : "inside value area"
+            table.cell(tbl, 0, 4, "Price", text_color = color.gray, text_size = size.small)
+            table.cell(tbl, 1, 4, side, text_color = color.gray, text_size = size.small)

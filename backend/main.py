@@ -26,6 +26,7 @@ itself.
 from __future__ import annotations
 
 import asyncio
+import re
 import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
@@ -271,9 +272,18 @@ async def api_ai_analysis(symbol: str, request: Request, force: bool = Query(Fal
     return JSONResponse(d)
 
 
-@app.get("/pine/auto_lines.pine")
-async def pine_auto_lines() -> FileResponse:
-    return FileResponse(str(ROOT / "pine" / "auto_lines.pine"), media_type="text/plain")
+@app.get("/pine/{name}")
+async def pine_script(name: str) -> FileResponse:
+    """Serve the TradingView scripts in ./pine as plain text, e.g.
+    /pine/auto_lines.pine and /pine/volume_profile_poc.pine. The name is
+    restricted to a flat [a-z0-9_].pine so nothing outside that directory
+    can be reached."""
+    if not re.fullmatch(r"[a-z0-9_]+\.pine", name):
+        raise HTTPException(status_code=404, detail="no such script")
+    path = ROOT / "pine" / name
+    if not path.is_file():
+        raise HTTPException(status_code=404, detail="no such script")
+    return FileResponse(str(path), media_type="text/plain")
 
 
 @app.get("/api/layout")

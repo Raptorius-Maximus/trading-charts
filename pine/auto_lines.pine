@@ -255,7 +255,7 @@ if barstate.islast
     score := math.max(0, math.min(100, score))
 
     if showTable
-        var table tbl = table.new(position.top_left, 1, 4, bgcolor = color.new(color.black, 30), border_width = 1)
+        var table tbl = table.new(position.bottom_right, 1, 4, bgcolor = color.new(color.black, 30), border_width = 1)
         string lbl = score >= 75 ? "High-probability long setup" : score >= 60 ? "Constructive" : score >= 40 ? "Neutral — wait" : "Poor location to buy"
         color col = score >= 60 ? color.teal : score >= 40 ? color.orange : color.red
         string supTxt = na(nearSup) ? "–" : str.tostring(nearSup, format.mintick) + " (" + str.tostring(supT) + "x)"
